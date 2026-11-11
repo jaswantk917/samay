@@ -2,7 +2,6 @@ package app.materialclock.ui
 
 import android.Manifest
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,14 +17,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import app.materialclock.core.humanUntil
@@ -118,7 +110,7 @@ enum class Tab(val label: String, val icon: ImageVector, val key: String) {
  * the accessibility contract a `ShortNavigationBar` would have supplied for free; see its own
  * documentation for what it pays and why.
  *
- * Every tab shares one header: a large title that tucks away on scroll, one quiet status line, and
+ * Every tab shares one header: a large title, one quiet status line, and
  * a settings button that opens that tab's sheet. Content blurs as it slides under the header and
  * under the dock.
  */
@@ -144,21 +136,6 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
         val haptics = rememberHaptics()
         val density = LocalDensity.current
         var headerHeight by remember { mutableStateOf(120.dp) }
-        // the title tucks away on the way down and comes back on any scroll up
-        var titleHeight by remember { mutableFloatStateOf(0f) }
-        var collapse by remember { mutableFloatStateOf(0f) }
-        val collapser = remember {
-            object : NestedScrollConnection {
-                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                    collapse = (collapse - available.y).coerceIn(0f, titleHeight)
-                    return Offset.Zero
-                }
-            }
-        }
-        val reveal = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
-        LaunchedEffect(tab) {
-            if (collapse > 0f) animate(collapse, 0f, animationSpec = reveal) { v, _ -> collapse = v }
-        }
 
         val alarms by vm.alarms.collectAsStateWithLifecycle()
         val minute by rememberWallTicker(60_000L)
@@ -173,8 +150,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
-                .nestedScroll(collapser),
+                .background(MaterialTheme.colorScheme.surface),
         ) {
             val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             // The dock floats over the content rather than displacing it, so the space it occupies
@@ -188,7 +164,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "tab",
                 modifier = Modifier.fillMaxSize().edgeBlur(
-                    top = { headerHeight - with(density) { collapse.toDp() } },
+                    top = headerHeight,
                     bottom = navBottom + DOCK_HEIGHT + DOCK_CLEARANCE,
                 ),
             ) { current ->
@@ -268,8 +244,6 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                 title = tab.label,
                 subtitle = subtitle,
                 onSettings = { haptics.play(Haptic.Tap); showSettings = true },
-                collapse = { collapse },
-                onTitleHeight = { titleHeight = it.toFloat() },
                 modifier = Modifier.onSizeChanged { headerHeight = with(density) { it.height.toDp() } },
             )
             // the list blurs right up under the clock; a soft fade keeps the clock readable
@@ -347,29 +321,18 @@ private fun Header(
     title: String,
     subtitle: String?,
     onSettings: () -> Unit,
-    collapse: () -> Float,
-    onTitleHeight: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val surface = MaterialTheme.colorScheme.surface
     Column(
         modifier
             .fillMaxWidth()
-            .graphicsLayer { translationY = -collapse() }
             .background(Brush.verticalGradient(0f to surface.copy(alpha = 0.8f), 0.65f to surface.copy(alpha = 0.6f), 1f to surface.copy(alpha = 0f)))
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(bottom = 10.dp),
     ) {
         Row(
             Modifier
-                .onSizeChanged { onTitleHeight(it.height) }
-                .graphicsLayer {
-                    val p = if (size.height > 0f) collapse() / size.height else 0f
-                    alpha = 1f - p
-                    scaleX = 1f - 0.08f * p
-                    scaleY = 1f - 0.08f * p
-                    transformOrigin = TransformOrigin(0f, 1f)
-                }
                 .fillMaxWidth()
                 .padding(start = 24.dp, end = 12.dp, top = 8.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,

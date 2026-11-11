@@ -26,7 +26,6 @@ It does one job well, nothing more. No ads, no accounts, no tracking, no servers
   - The title is `displaySmallEmphasized` at 24 dp from the left edge, 8 dp under the status bar.
   - Under it is one quiet `labelLarge` line in `onSurfaceVariant`.
   - Behind it sits a fading surface scrim, with a soft fade under the clock.
-  - The title tucks away (shrinks and fades) as the page scrolls, and comes back on the way up.
 - **Edges:** content blurs as it slides under the header and into the band above the navigation bar. The bottom blur eases in (cubic), so there's no visible line where it starts.
 - **Shapes:** groups of rows have big outer corners and small inner ones. Use material shapes (cookie, clover, sunny) for the few things that deserve character, like a settings button.
 - **Theme:** every screen follows the user's palette (app colours or wallpaper), pure black and blur settings.

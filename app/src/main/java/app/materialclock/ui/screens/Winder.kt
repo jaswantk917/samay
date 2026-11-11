@@ -1,5 +1,7 @@
 package app.materialclock.ui.screens
 
+import app.materialclock.ui.util.Haptic
+import app.materialclock.ui.util.rememberHaptics
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -90,6 +92,7 @@ fun Winder(
     val ridge = MaterialTheme.colorScheme.onSurfaceVariant
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val onChange by rememberUpdatedState(onValueChange)
+    val haptics = rememberHaptics()
 
     var pos by remember { mutableFloatStateOf(value.toFloat()) }
     // What this control last reported. An incoming `value` equal to it is our own echo.
@@ -148,6 +151,8 @@ fun Winder(
                     pos = (pos + delta).coerceIn(range.first.toFloat(), range.last.toFloat())
                     val rounded = pos.roundToInt()
                     if (rounded != emitted) {
+                        // the drum's texture: a low tick per graduation, a firmer one on the long marks
+                        haptics.play(if (rounded % majorEvery == 0) Haptic.Tap else Haptic.Segment)
                         emitted = rounded
                         onChange(rounded)
                     }
