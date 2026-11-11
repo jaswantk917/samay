@@ -1,5 +1,6 @@
 package app.materialclock.alarm
 
+import app.materialclock.core.Alarm
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -41,6 +42,7 @@ object Notifications {
     const val CHANNEL_ALARM = "alarm"
     const val CHANNEL_TIMER = "timer"
     const val CHANNEL_STOPWATCH = "stopwatch"
+    const val CHANNEL_UPCOMING = "upcoming_alarm"
 
     const val ID_RINGING = 1
     const val ID_TIMER = 2
@@ -49,6 +51,8 @@ object Notifications {
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = context.getSystemService<NotificationManager>() ?: return
+        // was silent-low, which Pixel hides from the lock screen; importance can't be raised in place
+        nm.deleteNotificationChannel("upcoming")
 
         // No sound on the channel: the ringer plays its own looping audio, and a channel sound
         // would fire a second, one-shot copy over the top of it.
@@ -68,12 +72,44 @@ object Notifications {
             }
         )
         nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_UPCOMING, "Upcoming alarms", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "A heads-up before an alarm rings, with Skip"
+                setSound(null, null)
+            }
+        )
+        nm.createNotificationChannel(
             NotificationChannel(CHANNEL_STOPWATCH, "Stopwatch", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "A running stopwatch"
                 setSound(null, null)
             }
         )
     }
+
+    /* ── Upcoming alarm ─────────────────────────────────────────────────────────────────────── */
+
+    fun showUpcoming(context: Context, alarm: Alarm, at: java.time.ZonedDateTime) {
+        ensureChannels(context)
+        val atMillis = at.toInstant().toEpochMilli()
+        val time = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(atMillis))
+        val b = NotificationCompat.Builder(context, CHANNEL_UPCOMING)
+            .setSmallIcon(R.drawable.ic_stat_alarm)
+            .setContentTitle("Alarm at $time")
+            .setContentText(alarm.label.ifBlank { "Rings soon" })
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(openApp(context, TAB_ALARMS))
+            .setShowWhen(false)
+            .setTimeoutAfter((atMillis - System.currentTimeMillis()).coerceAtLeast(1L))
+            .addAction(0, "Skip", broadcast(context, ClockActionReceiver.ACTION_SKIP, UPCOMING_BASE + alarm.id.toInt(), alarm.id))
+        post(context, UPCOMING_BASE + alarm.id.toInt(), b.build())
+    }
+
+    fun hideUpcoming(context: Context, id: Long) {
+        NotificationManagerCompat.from(context).cancel(UPCOMING_BASE + id.toInt())
+    }
+
+    private const val UPCOMING_BASE = 1000
 
     /* ── Timer ──────────────────────────────────────────────────────────────────────────────── */
 

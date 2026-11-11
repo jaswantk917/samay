@@ -60,7 +60,22 @@ object AlarmScheduler {
             // Degraded but not silent: a window alarm still rings, just not to the second.
             am.setWindow(AlarmManager.RTC_WAKEUP, at, 60_000L, fire)
         }
+        // Exact when allowed: an inexact alarm in Doze can slip by ~9 min, eating the whole lead.
+        val upcomingAt = at - UPCOMING_LEAD_MS
+        if (upcomingAt <= System.currentTimeMillis()) {
+            Notifications.showUpcoming(context, alarm, next)
+        } else {
+            Notifications.hideUpcoming(context, alarm.id)
+            val upcoming = upcomingPendingIntent(context, alarm.id)
+            if (canScheduleExact(context)) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, upcomingAt, upcoming)
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, upcomingAt, upcoming)
+            }
+        }
     }
+
+    const val UPCOMING_LEAD_MS = 10 * 60 * 1000L
 
     fun scheduleAll(context: Context, alarms: List<Alarm>) {
         alarms.forEach { schedule(context, it) }
@@ -69,7 +84,21 @@ object AlarmScheduler {
     fun cancel(context: Context, id: Long) {
         val am = context.getSystemService<AlarmManager>() ?: return
         am.cancel(firePendingIntent(context, id))
+        am.cancel(upcomingPendingIntent(context, id))
+        Notifications.hideUpcoming(context, id)
     }
+
+    private fun upcomingPendingIntent(context: Context, id: Long): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            UPCOMING_REQUEST_BASE + id.toInt(),
+            Intent(context, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_UPCOMING)
+                .putExtra(AlarmReceiver.EXTRA_ID, id),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+    private const val UPCOMING_REQUEST_BASE = 100_000
 
     private fun firePendingIntent(context: Context, id: Long): PendingIntent =
         PendingIntent.getBroadcast(

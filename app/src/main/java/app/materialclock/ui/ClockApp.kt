@@ -206,7 +206,9 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                                         actionLabel = "Undo",
                                         duration = SnackbarDuration.Short,
                                     )
-                                    if (r == SnackbarResult.ActionPerformed) vm.saveAlarm(alarm)
+                                    if (r == SnackbarResult.ActionPerformed) {
+                                        vm.saveAlarm(alarm, skipNext = alarm.skipping(java.time.ZonedDateTime.now()) != null)
+                                    }
                                 }
                             },
                             contentPadding = body,
@@ -333,7 +335,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                 initial = draft,
                 weekStart = settings.alarms.weekStart,
                 onDismiss = { editing = null },
-                onSave = { vm.saveAlarm(it) },
+                onSave = { alarm, skip -> vm.saveAlarm(alarm, skip) },
                 onDelete = if (draft.id == 0L) null else ({ id -> vm.deleteAlarm(id) }),
             )
         }

@@ -34,6 +34,13 @@ class ClockActionReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_SNOOZE -> snooze(app, store, id)
+                    ACTION_SKIP -> {
+                        val now = java.time.ZonedDateTime.now()
+                        val updated = store.alarmsNow().map { if (it.id == id) it.withSkip(true, now) else it }
+                        store.putAlarms(updated)
+                        updated.firstOrNull { it.id == id }?.let { AlarmScheduler.schedule(app, it) }
+                        Notifications.hideUpcoming(app, id)
+                    }
                     ACTION_DISMISS -> AlarmService.stop(app)
                     ACTION_TIMER_TOGGLE -> timerToggle(app, store)
                     ACTION_TIMER_ADD -> timerAdd(app, store)
@@ -116,6 +123,7 @@ class ClockActionReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_SNOOZE = "app.materialclock.SNOOZE"
+        const val ACTION_SKIP = "app.materialclock.SKIP"
         const val ACTION_DISMISS = "app.materialclock.DISMISS"
         const val ACTION_TIMER_TOGGLE = "app.materialclock.TIMER_TOGGLE"
         const val ACTION_TIMER_ADD = "app.materialclock.TIMER_ADD"

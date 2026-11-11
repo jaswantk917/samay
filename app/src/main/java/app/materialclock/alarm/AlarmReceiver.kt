@@ -38,6 +38,7 @@ class AlarmReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_FIRE -> fire(app, intent.getLongExtra(EXTRA_ID, -1L))
+                    ACTION_UPCOMING -> upcoming(app, intent.getLongExtra(EXTRA_ID, -1L))
                     ACTION_TIMER_EXPIRED -> timerExpired(app)
                     else -> reschedule(app)
                 }
@@ -47,9 +48,16 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
+    private suspend fun upcoming(context: Context, id: Long) {
+        val alarm = ClockStore(context).alarmsNow().firstOrNull { it.id == id } ?: return
+        val next = alarm.nextFire(java.time.ZonedDateTime.now()) ?: return
+        Notifications.showUpcoming(context, alarm, next)
+    }
+
     private suspend fun fire(context: Context, id: Long) {
         val store = ClockStore(context)
         val alarm = store.alarmsNow().firstOrNull { it.id == id } ?: return
+        Notifications.hideUpcoming(context, id)
 
         // Clearing the snooze first matters: if the ring is what a snooze produced, leaving the
         // stamp in place would make `nextFire` keep returning a moment in the past forever.
@@ -102,6 +110,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_FIRE = "app.materialclock.FIRE"
+        const val ACTION_UPCOMING = "app.materialclock.UPCOMING"
         const val ACTION_TIMER_EXPIRED = "app.materialclock.TIMER_EXPIRED"
         const val EXTRA_ID = "id"
     }

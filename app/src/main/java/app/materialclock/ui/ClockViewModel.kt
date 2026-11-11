@@ -132,9 +132,10 @@ class ClockViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Insert or replace. A null [Alarm.id] of 0 means "new", which is what the sheet sends. */
-    fun saveAlarm(draft: Alarm) = viewModelScope.launch {
+    fun saveAlarm(draft: Alarm, skipNext: Boolean = false) = viewModelScope.launch {
         val id = if (draft.id == 0L) store.nextId() else draft.id
         val alarm = draft.copy(id = id, snoozedUntilMillis = null, skippedAtMillis = null)
+            .let { if (skipNext) it.withSkip(true, java.time.ZonedDateTime.now()) else it }
         val current = store.alarmsNow()
         val next = if (current.any { it.id == id }) {
             current.map { if (it.id == id) alarm else it }
@@ -148,11 +149,7 @@ class ClockViewModel(app: Application) : AndroidViewModel(app) {
     /** Passes over the next ring of a repeating alarm, or undoes that. */
     fun skipNext(id: Long, skip: Boolean) = viewModelScope.launch {
         val now = java.time.ZonedDateTime.now()
-        val next = store.alarmsNow().map { a ->
-            if (a.id != id) a
-            else if (skip) a.copy(skippedAtMillis = a.nextFire(now)?.toInstant()?.toEpochMilli(), snoozedUntilMillis = null)
-            else a.copy(skippedAtMillis = null)
-        }
+        val next = store.alarmsNow().map { a -> if (a.id == id) a.withSkip(skip, now) else a }
         store.putAlarms(next)
         next.firstOrNull { it.id == id }?.let { AlarmScheduler.schedule(ctx, it) }
     }

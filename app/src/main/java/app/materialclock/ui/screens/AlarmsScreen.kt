@@ -1,11 +1,16 @@
 package app.materialclock.ui.screens
 
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.fillMaxHeight
 import java.time.ZonedDateTime
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.outlined.AlarmOff
-import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
@@ -182,24 +187,24 @@ fun AlarmsScreen(
         }
         return
     }
-    // staggered: a tile with a label or a skip line is taller than one without
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Fixed(2),
+    val rows = remember(alarms) { pairUp(alarms, ZonedDateTime.now()) }
+    LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalItemSpacing = 12.dp,
+        verticalArrangement = Arrangement.spacedBy(GRID_GAP),
     ) {
-        items(alarms, key = { it.id }) { alarm ->
-            AlarmTile(
-                alarm,
-                order,
-                onToggle = { onToggle(alarm.id) },
-                onEdit = { onEdit(alarm) },
-                onDelete = { onDelete(alarm) },
-                onSkip = { skip -> onSkip(alarm.id, skip) },
-                modifier = Modifier.animateItem(),
-            )
+        items(rows, key = { row -> row.alarms.joinToString("-") { it.id.toString() } }) { row ->
+            TileRow(row, Modifier.animateItem()) { alarm, wide ->
+                AlarmTile(
+                    alarm,
+                    order,
+                    onToggle = { onToggle(alarm.id) },
+                    onEdit = { onEdit(alarm) },
+                    onDelete = { onDelete(alarm) },
+                    onSkip = { skip -> onSkip(alarm.id, skip) },
+                    wide = wide,
+                )
+            }
         }
     }
 }
@@ -381,16 +386,13 @@ private fun AlarmTile(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSkip: (Boolean) -> Unit,
+    wide: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val armed = alarm.enabled
     val now = ZonedDateTime.now()
     val skipping = alarm.skipping(now)
-    // one quiet line at most: what's skipped, then the label
-    val note = listOfNotNull(
-        skipping?.let { "Skips ${dayWord(it.toLocalDate(), now.toLocalDate())}" },
-        alarm.label.takeIf { it.isNotBlank() },
-    ).joinToString(" · ").takeIf { it.isNotEmpty() }
+    val note = alarm.note(now)
     val haptics = rememberHaptics()
     val press = remember { MutableInteractionSource() }
     var menu by remember { mutableStateOf(false) }
@@ -421,7 +423,7 @@ private fun AlarmTile(
     val minutesText = "%02d".format(alarm.time.minute)
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
-    val tileWidth = maxWidth
+    val tileWidth = if (wide) (maxWidth - GRID_GAP) / 2 else maxWidth
     val inset = CONTENT_INSET_DP.dp
     // Sized to fill the tile's **width**, which is the only dimension the grid fixes. `06:40` and
     // `11:22` are one width now that the figures are tabular, so this is one answer for the grid.
@@ -444,14 +446,15 @@ private fun AlarmTile(
     //
     // Falls out at about 184x216, and the cap lands at 0.64 of the height. That is near enough
     // the render's 0.62 that the tile still reads as the same design.
-    val tileHeight = inset * 2 + hourCap + timeToDays + SWITCH_ROW_VISIBLE_DP.dp + (if (note != null) NOTE_DP.dp else 0.dp)
+    val tileHeight = if (wide) inset * 2 + hourCap else inset * 2 + hourCap + timeToDays + SWITCH_ROW_VISIBLE_DP.dp
 
     Surface(
         color = container,
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(tileHeight)
+            .heightIn(min = tileHeight)
+            .fillMaxHeight()
             .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
             .pressScale(press)
             .combinedClickable(
@@ -495,7 +498,7 @@ private fun AlarmTile(
                         leadingIcon = { Icon(Icons.Outlined.Delete, null) },
                         onClick = { menu = false; onDelete() },
                     )
-                    if (armed && !alarm.isOneShot) {
+                    if (armed) {
                         DropdownMenuItem(
                             text = { Text(if (skipping != null) "Don't skip" else "Skip next") },
                             leadingIcon = { Icon(if (skipping != null) Icons.Outlined.Alarm else Icons.Outlined.AlarmOff, null) },
@@ -507,25 +510,11 @@ private fun AlarmTile(
                         )
                     }
                 }
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = inset, bottom = inset - SWITCH_TOUCH_INSET_DP.dp),
-                    verticalArrangement = Arrangement.spacedBy(timeToDays),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+                val numerals: @Composable (Modifier) -> Unit = { m ->
                     Row(
-                        // Centred on the **advance box**, plus one grid-wide ink trim.
-                        //
-                        // The distinction is the whole fix. A *per-tile* ink shift, which is what
-                        // this used to do, makes a tile's own two margins equal at the price of
-                        // moving the block by a different amount on every tile, which is the
-                        // inconsistency you see when two tiles sit side by side. These paddings
-                        // come out of a solve against `"00"`, not against this tile, so they are
-                        // the same everywhere.
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = fit.padStart, end = fit.padEnd),
+                        // Centred on the **advance box**, plus one grid-wide ink trim, so every tile's
+                        // block moves by the same amount.
+                        modifier = m.padding(start = fit.padStart, end = fit.padEnd),
                         verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.Center,
                     ) {
@@ -538,9 +527,7 @@ private fun AlarmTile(
                             tracking = ClockFace.CONDENSED_TRACKING,
                         )
                         Spacer(Modifier.width(hourCap * GAP_FRACTION))
-                        // Minutes over meridiem, centred on each other. Those two plus the gap sum
-                        // to the hour's cap, so the meridiem lands on the hour's baseline, which is
-                        // what the render does.
+                        // minutes + gap + meridiem sum to the hour's cap, so AM lands on its baseline
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Numerals(
                                 text = minutesText,
@@ -561,35 +548,92 @@ private fun AlarmTile(
                             )
                         }
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = inset),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        DayLetters(alarm, order, ink)
-                        Switch(
-                            checked = armed,
-                            onCheckedChange = { onToggle() },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = container,
-                                checkedTrackColor = ink,
-                                checkedBorderColor = Color.Transparent,
-                                uncheckedThumbColor = ink,
-                                uncheckedTrackColor = Color.Transparent,
-                                uncheckedBorderColor = ink,
-                            ),
-                        )
+                }
+                val toggle: @Composable (Modifier) -> Unit = { m ->
+                    Switch(
+                        checked = armed,
+                        onCheckedChange = { onToggle() },
+                        modifier = m,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = container,
+                            checkedTrackColor = ink,
+                            checkedBorderColor = Color.Transparent,
+                            uncheckedThumbColor = ink,
+                            uncheckedTrackColor = Color.Transparent,
+                            uncheckedBorderColor = ink,
+                        ),
+                    )
+                }
+                val dayStyle = MaterialTheme.typography.titleMediumEmphasized
+                if (wide) {
+                    // Corners, not a centred blob: clock top-left, switch top-right, days bottom-right
+                    // on the meridiem's line. The width goes to air, the words never truncate.
+                    Row(Modifier.fillMaxSize().padding(top = inset, bottom = inset, end = inset)) {
+                        numerals(Modifier.width(tileWidth))
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            toggle(Modifier.offset(y = -SWITCH_TOUCH_INSET_DP.dp))
+                            Column(horizontalAlignment = Alignment.End) {
+                                if (note != null) {
+                                    Text(
+                                        note,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = ink.copy(alpha = 0.8f),
+                                        maxLines = 2,
+                                        textAlign = TextAlign.End,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                }
+                                if (alarm.hasLetters()) {
+                                    DayLetters(alarm, order, ink)
+                                } else {
+                                    Text(alarm.dayWord(now), style = dayStyle, color = ink, maxLines = 1)
+                                }
+                            }
+                        }
                     }
-                    if (note != null) {
-                        Text(
-                            note,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = ink.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = inset, bottom = inset - SWITCH_TOUCH_INSET_DP.dp),
+                        verticalArrangement = Arrangement.spacedBy(timeToDays, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        numerals(Modifier.fillMaxWidth())
+                        Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = inset),
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            if (alarm.hasLetters()) {
+                                DayLetters(alarm, order, ink)
+                            } else {
+                                Text(
+                                    alarm.dayWord(now),
+                                    style = dayStyle,
+                                    color = ink,
+                                    maxLines = 1,
+                                    autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = dayStyle.fontSize),
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                )
+                            }
+                            toggle(Modifier)
+                        }
+                        if (note != null) {
+                            Text(
+                                note,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = ink.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = inset),
+                            )
+                        }
                     }
                 }
             }
@@ -659,7 +703,68 @@ private fun DayLetters(alarm: Alarm, order: List<DayOfWeek>, ink: Color) {
 }
 
 /** Weight is the state, the same way it is on the numerals above. Not a second colour ramp. */
-private const val NOTE_DP = 26f
+private val GRID_GAP = 12.dp
+
+private class AlarmRow(val alarms: List<Alarm>, val weights: List<Float>)
+
+/** Needs its day letters (a custom set of days) or a line of words, so it deserves the room. */
+private fun Alarm.isHeavy(now: ZonedDateTime) = hasLetters() || note(now) != null
+
+private fun Alarm.hasLetters() = !isOneShot && days.size != 7 && days != Alarm.WEEKDAYS && days != Alarm.WEEKENDS
+
+/**
+ * Alarms in time order, two to a row. A tile with letters or words beside a light one (once,
+ * every day, weekdays) takes two thirds of the row; two alike split it; the odd one out gets the
+ * whole row and lays its words beside the clock.
+ */
+private fun pairUp(alarms: List<Alarm>, now: ZonedDateTime): List<AlarmRow> = alarms.chunked(2).map { pair ->
+    if (pair.size == 1) {
+        AlarmRow(pair, listOf(1f))
+    } else {
+        val (a, b) = pair
+        val heavyA = a.isHeavy(now)
+        val heavyB = b.isHeavy(now)
+        AlarmRow(pair, listOf(if (heavyA && !heavyB) 2f else 1f, if (heavyB && !heavyA) 2f else 1f))
+    }
+}
+
+/** The days in a word, for a tile that doesn't spell them out: "Every day", "Tomorrow". */
+private fun Alarm.dayWord(now: ZonedDateTime): String = when {
+    isOneShot && enabled -> nextFire(now)?.let { dayWord(it.toLocalDate(), now.toLocalDate()).replaceFirstChar(Char::uppercase) } ?: "Once"
+    isOneShot -> "Once"
+    else -> repeatLabel()
+}
+
+/**
+ * Lays a row's tiles out at their weights, all as tall as the tallest: each is measured once to
+ * find its natural height, then placed at the row's.
+ */
+@Composable
+private fun TileRow(row: AlarmRow, modifier: Modifier, tile: @Composable (Alarm, Boolean) -> Unit) {
+    val wide = row.alarms.size == 1
+    SubcomposeLayout(modifier.fillMaxWidth()) { c ->
+        val gap = GRID_GAP.roundToPx()
+        val room = c.maxWidth - gap * (row.alarms.size - 1)
+        val sum = row.weights.sum()
+        val widths = row.weights.map { (room * it / sum).toInt() }.toMutableList()
+        widths[widths.lastIndex] = room - widths.dropLast(1).sum()
+        val natural = subcompose("probe") { row.alarms.forEach { tile(it, wide) } }
+            .mapIndexed { i, m -> m.measure(Constraints.fixedWidth(widths[i])).height }
+        val h = natural.max()
+        val placed = subcompose("tiles") { row.alarms.forEach { tile(it, wide) } }
+            .mapIndexed { i, m -> m.measure(Constraints.fixed(widths[i], h)) }
+        layout(c.maxWidth, h) {
+            var x = 0
+            placed.forEachIndexed { i, p -> p.place(x, 0); x += widths[i] + gap }
+        }
+    }
+}
+
+/** One quiet line at most: what's skipped, then the label. A tile with one is laid out wide. */
+private fun Alarm.note(now: ZonedDateTime): String? = listOfNotNull(
+    skipping(now)?.let { "Skips ${dayWord(it.toLocalDate(), now.toLocalDate())}" },
+    label.takeIf { it.isNotBlank() },
+).joinToString(" · ").takeIf { it.isNotEmpty() }
 
 /** "today", "tomorrow", or the weekday, for the skip line. */
 private fun dayWord(day: java.time.LocalDate, today: java.time.LocalDate): String = when (day) {

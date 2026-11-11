@@ -1,5 +1,11 @@
 package app.materialclock.ui.sheets
 
+import androidx.compose.material.icons.outlined.AlarmOff
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.snapshotFlow
@@ -95,7 +101,8 @@ fun AlarmEditSheet(
     initial: Alarm,
     weekStart: WeekStart,
     onDismiss: () -> Unit,
-    onSave: (Alarm) -> Unit,
+    /** The edited alarm, and whether its next ring should be skipped. */
+    onSave: (Alarm, Boolean) -> Unit,
     onDelete: ((Long) -> Unit)?,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -106,6 +113,7 @@ fun AlarmEditSheet(
     var vibrate by rememberSaveable(initial.id) { mutableStateOf(initial.vibrate) }
     var soundUri by rememberSaveable(initial.id) { mutableStateOf(initial.soundUri) }
     var discard by remember(initial.id) { mutableStateOf(false) }
+    var skip by remember(initial.id) { mutableStateOf(initial.skipping(java.time.ZonedDateTime.now()) != null) }
 
     val timeState = rememberTimePickerState(
         initialHour = initial.time.hour,
@@ -121,19 +129,17 @@ fun AlarmEditSheet(
     }
 
     /** Every exit but Cancel runs this. */
+    fun edited() = initial.copy(
+        time = LocalTime.of(timeState.hour, timeState.minute),
+        label = label.trim(),
+        days = days,
+        enabled = true,
+        vibrate = vibrate,
+        soundUri = soundUri,
+    )
+
     fun commitAndClose() {
-        if (!discard) {
-            onSave(
-                initial.copy(
-                    time = LocalTime.of(timeState.hour, timeState.minute),
-                    label = label.trim(),
-                    days = days,
-                    enabled = true,
-                    vibrate = vibrate,
-                    soundUri = soundUri,
-                )
-            )
-        }
+        if (!discard) onSave(edited(), skip && days.isNotEmpty())
         onDismiss()
     }
 
@@ -251,6 +257,23 @@ fun AlarmEditSheet(
                 }
             }
 
+            // a repeating alarm can pass over its next ring; the button names which one
+            AnimatedVisibility(days.isNotEmpty(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                val now = java.time.ZonedDateTime.now()
+                val nextRing = edited().copy(skippedAtMillis = null).nextFire(now)
+                ToggleButton(
+                    checked = skip,
+                    onCheckedChange = { on -> haptics.play(if (on) Haptic.ToggleOff else Haptic.ToggleOn); skip = on },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = EDGE).padding(top = 10.dp).height(ROW_H),
+                ) {
+                    Icon(Icons.Outlined.AlarmOff, contentDescription = null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        nextRing?.let { "Skip next · ${it.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}" } ?: "Skip next",
+                        style = MaterialTheme.typography.labelLargeEmphasized,
+                    )
+                }
+            }
             Spacer(Modifier.height(18.dp))
             // Same shape, different colour and width, which is the spec's "do" for a group of
             // buttons, but the colour now says what each one *does*. An earlier version used

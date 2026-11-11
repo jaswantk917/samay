@@ -54,6 +54,16 @@ data class Alarm(
             }
     }
 
+    /**
+     * Passes over the next ring, or undoes that. A one-time alarm has no ring after the next, so
+     * skipping it simply turns it off.
+     */
+    fun withSkip(skip: Boolean, now: ZonedDateTime): Alarm = when {
+        !skip -> copy(skippedAtMillis = null)
+        isOneShot -> copy(enabled = false, snoozedUntilMillis = null)
+        else -> copy(skippedAtMillis = nextFire(now)?.toInstant()?.toEpochMilli(), snoozedUntilMillis = null)
+    }
+
     /** The ring being skipped, while it's still ahead. */
     fun skipping(now: ZonedDateTime): ZonedDateTime? =
         skippedAtMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(now.zone) }?.takeIf { it.isAfter(now) }
