@@ -1,5 +1,9 @@
 package app.materialclock.ui.util
 
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.Composable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.Modifier
@@ -24,6 +28,28 @@ fun Modifier.onLongPress(action: () -> Unit) = pointerInput(Unit) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 event.changes.forEach { it.consume() }
             } while (event.changes.any { it.pressed })
+        }
+    }
+}
+
+/** Lets a control that drags sideways keep the tab pager still while a finger is on it. */
+val LocalSwipeLock = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
+
+/** Holds the tab pager for as long as a finger is down on this element. */
+@Composable
+fun Modifier.holdsTabSwipes(): Modifier {
+    val lock by rememberUpdatedState(LocalSwipeLock.current)
+    return pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            lock(true)
+            try {
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                } while (event.changes.any { it.pressed })
+            } finally {
+                lock(false)
+            }
         }
     }
 }

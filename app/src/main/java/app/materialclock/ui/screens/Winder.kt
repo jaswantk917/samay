@@ -1,5 +1,6 @@
 package app.materialclock.ui.screens
 
+import app.materialclock.ui.util.holdsTabSwipes
 import app.materialclock.ui.util.Haptic
 import app.materialclock.ui.util.rememberHaptics
 import androidx.compose.animation.core.animate
@@ -114,6 +115,7 @@ fun Winder(
                     steps = range.last - range.first,
                 )
             }
+            .holdsTabSwipes()
             .pointerInput(range) {
                 detectHorizontalDragGestures(
                     // Snap. Let go between two graduations and the drum settles onto the nearer

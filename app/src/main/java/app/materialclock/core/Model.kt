@@ -32,6 +32,8 @@ data class Alarm(
      * pending, which keeps every caller (scheduler, list, boot receiver) automatically correct.
      */
     val snoozedUntilMillis: Long? = null,
+    /** Wall-clock millis of one ring to pass over, or null. Stale once that moment has gone by. */
+    val skippedAtMillis: Long? = null,
 ) {
     val isOneShot: Boolean get() = days.isEmpty()
 
@@ -44,11 +46,17 @@ data class Alarm(
         }
         val todayAt = now.with(time).withSecond(0).withNano(0)
         if (isOneShot) return if (todayAt.isAfter(now)) todayAt else todayAt.plusDays(1)
-        // Seven candidates is enough: a repeating alarm always has one inside a week.
-        return (0..7).asSequence()
+        // Eight days covers a week plus the one ring that may be skipped.
+        return (0..8).asSequence()
             .map { todayAt.plusDays(it.toLong()) }
-            .firstOrNull { it.isAfter(now) && it.dayOfWeek in days }
+            .firstOrNull {
+                it.isAfter(now) && it.dayOfWeek in days && it.toInstant().toEpochMilli() != skippedAtMillis
+            }
     }
+
+    /** The ring being skipped, while it's still ahead. */
+    fun skipping(now: ZonedDateTime): ZonedDateTime? =
+        skippedAtMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(now.zone) }?.takeIf { it.isAfter(now) }
 
     /** The words the app prints: "Every day" / "Weekdays" / "Mon, Wed, Fri" / "Tomorrow". */
     fun repeatLabel(now: LocalDate = LocalDate.now()): String = when {

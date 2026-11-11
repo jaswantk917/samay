@@ -245,6 +245,7 @@ private fun encodeAlarms(list: List<Alarm>) = JSONArray().apply {
                 .put("vibrate", a.vibrate)
                 .apply { a.soundUri?.let { put("sound", it) } }
                 .apply { a.snoozedUntilMillis?.let { put("snoozed", it) } }
+                .apply { a.skippedAtMillis?.let { put("skipped", it) } }
         )
     }
 }.toString()
@@ -263,6 +264,7 @@ private fun parseAlarms(s: String): List<Alarm> = runCatching {
             vibrate = o.optBoolean("vibrate", true),
             soundUri = o.optString("sound").takeIf { it.isNotEmpty() },
             snoozedUntilMillis = o.optLong("snoozed").takeIf { it > 0L },
+            skippedAtMillis = o.optLong("skipped").takeIf { it > 0L },
         )
     }
 }.getOrDefault(emptyList())

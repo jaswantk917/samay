@@ -1,5 +1,11 @@
 package app.materialclock.ui.screens
 
+import java.time.ZonedDateTime
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.outlined.AlarmOff
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
@@ -39,9 +45,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -155,6 +158,7 @@ fun AlarmsScreen(
     onToggle: (Long) -> Unit,
     onEdit: (Alarm) -> Unit,
     onDelete: (Alarm) -> Unit,
+    onSkip: (Long, Boolean) -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -178,12 +182,13 @@ fun AlarmsScreen(
         }
         return
     }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+    // staggered: a tile with a label or a skip line is taller than one without
+    LazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Fixed(2),
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalItemSpacing = 12.dp,
     ) {
         items(alarms, key = { it.id }) { alarm ->
             AlarmTile(
@@ -192,6 +197,7 @@ fun AlarmsScreen(
                 onToggle = { onToggle(alarm.id) },
                 onEdit = { onEdit(alarm) },
                 onDelete = { onDelete(alarm) },
+                onSkip = { skip -> onSkip(alarm.id, skip) },
                 modifier = Modifier.animateItem(),
             )
         }
@@ -374,9 +380,17 @@ private fun AlarmTile(
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onSkip: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val armed = alarm.enabled
+    val now = ZonedDateTime.now()
+    val skipping = alarm.skipping(now)
+    // one quiet line at most: what's skipped, then the label
+    val note = listOfNotNull(
+        skipping?.let { "Skips ${dayWord(it.toLocalDate(), now.toLocalDate())}" },
+        alarm.label.takeIf { it.isNotBlank() },
+    ).joinToString(" · ").takeIf { it.isNotEmpty() }
     val haptics = rememberHaptics()
     val press = remember { MutableInteractionSource() }
     var menu by remember { mutableStateOf(false) }
@@ -430,7 +444,7 @@ private fun AlarmTile(
     //
     // Falls out at about 184x216, and the cap lands at 0.64 of the height. That is near enough
     // the render's 0.62 that the tile still reads as the same design.
-    val tileHeight = inset * 2 + hourCap + timeToDays + SWITCH_ROW_VISIBLE_DP.dp
+    val tileHeight = inset * 2 + hourCap + timeToDays + SWITCH_ROW_VISIBLE_DP.dp + (if (note != null) NOTE_DP.dp else 0.dp)
 
     Surface(
         color = container,
@@ -481,6 +495,17 @@ private fun AlarmTile(
                         leadingIcon = { Icon(Icons.Outlined.Delete, null) },
                         onClick = { menu = false; onDelete() },
                     )
+                    if (armed && !alarm.isOneShot) {
+                        DropdownMenuItem(
+                            text = { Text(if (skipping != null) "Don't skip" else "Skip next") },
+                            leadingIcon = { Icon(if (skipping != null) Icons.Outlined.Alarm else Icons.Outlined.AlarmOff, null) },
+                            onClick = {
+                                menu = false
+                                haptics.play(if (skipping != null) Haptic.ToggleOn else Haptic.ToggleOff)
+                                onSkip(skipping == null)
+                            },
+                        )
+                    }
                 }
                 Column(
                     modifier = Modifier
@@ -556,6 +581,16 @@ private fun AlarmTile(
                             ),
                         )
                     }
+                    if (note != null) {
+                        Text(
+                            note,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = ink.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = inset),
+                        )
+                    }
                 }
             }
         }
@@ -624,5 +659,14 @@ private fun DayLetters(alarm: Alarm, order: List<DayOfWeek>, ink: Color) {
 }
 
 /** Weight is the state, the same way it is on the numerals above. Not a second colour ramp. */
+private const val NOTE_DP = 26f
+
+/** "today", "tomorrow", or the weekday, for the skip line. */
+private fun dayWord(day: java.time.LocalDate, today: java.time.LocalDate): String = when (day) {
+    today -> "today"
+    today.plusDays(1) -> "tomorrow"
+    else -> day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+}
+
 private const val DAY_WEIGHT_ON = 700
 private const val DAY_WEIGHT_OFF = 400

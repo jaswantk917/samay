@@ -1,5 +1,6 @@
 package app.materialclock.ui
 
+import app.materialclock.ui.util.LocalSwipeLock
 import app.materialclock.core.TimerState
 import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.snapshotFlow
@@ -173,13 +174,17 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
             val body = PaddingValues(start = 16.dp, end = 16.dp, top = headerHeight, bottom = underDock)
             val edgeToEdge = PaddingValues(top = headerHeight, bottom = underDock)
 
+            var swipeLocked by remember { mutableStateOf(false) }
+            val lockSwipes = remember { { locked: Boolean -> swipeLocked = locked } }
             HorizontalPager(
                 state = pager,
+                userScrollEnabled = !swipeLocked,
                 modifier = Modifier.fillMaxSize().edgeBlur(
                     top = headerHeight,
                     bottom = navBottom + DOCK_HEIGHT + DOCK_CLEARANCE,
                 ),
             ) { page ->
+              CompositionLocalProvider(LocalSwipeLock provides lockSwipes) {
                 when (tabs[page]) {
                     Tab.ALARMS -> {
                         AlarmsScreen(
@@ -191,6 +196,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                                 vm.toggleAlarm(id)
                             },
                             onEdit = { haptics.play(Haptic.Tap); editing = it },
+                            onSkip = vm::skipNext,
                             onDelete = { alarm ->
                                 haptics.play(Haptic.Delete)
                                 vm.deleteAlarm(alarm.id)
@@ -277,6 +283,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                         )
                     }
                 }
+              }
             }
 
             Header(

@@ -143,9 +143,8 @@ private fun SetTimer(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(4.dp))
         DraftReadout(hh, mm, ss)
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(22.dp - READOUT_OVERSHOOT))
         Keypad(onDigit = onDigit, onBackspace = onBackspace, onClear = onClear)
         Spacer(Modifier.height(10.dp))
         // Below the keypad and above Start: you type an exact value or wind to a rough one, and
@@ -184,6 +183,8 @@ private fun SetTimer(
  * Dimming the lead-in is what makes the keypad feel like it is filling from the right rather than
  * replacing a whole field.
  */
+private val READOUT_OVERSHOOT = 14.dp
+
 @Composable
 private fun DraftReadout(hh: String, mm: String, ss: String) {
     AnimatedContent(
@@ -194,7 +195,11 @@ private fun DraftReadout(hh: String, mm: String, ss: String) {
                 .using(SizeTransform(clip = false))
         },
         label = "draft",
-    ) { text -> DraftDigits(text, hh, mm, ss) }
+    ) { text ->
+        // the fade draws through a layer clipped to its bounds, and round digits overshoot the cap
+        // height, so the box gets room above and below or the roll crops their tops and bottoms
+        Box(Modifier.padding(vertical = READOUT_OVERSHOOT)) { DraftDigits(text, hh, mm, ss) }
+    }
 }
 
 @Composable

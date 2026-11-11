@@ -1,10 +1,10 @@
 package app.materialclock.ui.sheets
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import app.materialclock.ui.util.rememberHaptics
 import app.materialclock.ui.util.Haptic
 import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.VerifiedUser
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,15 +49,19 @@ fun AboutRows() {
 
     val haptics = rememberHaptics()
     fun show(page: AboutPage) { haptics.play(Haptic.Tap); open = page }
-    SettingRow(Icons.Rounded.Lock, "Privacy", "No accounts, no tracking, no network", onClick = { show(AboutPage.PRIVACY) })
-    SettingRow(Icons.Rounded.VerifiedUser, "Permissions", "What each one is for", onClick = { show(AboutPage.PERMISSIONS) })
     SettingRow(Icons.Rounded.Description, "Licences", "Fonts and libraries", onClick = { show(AboutPage.LICENCES) })
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "Everything stays on this phone. No accounts, no network.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 8.dp),
+    )
     Text(
         "Samay ${BuildConfig.VERSION_NAME}",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 16.dp),
+        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 2.dp),
     )
 
     open?.let { page ->
@@ -81,53 +85,6 @@ fun AboutRows() {
 
 private enum class AboutPage(val title: String, val body: List<String>) {
 
-    PRIVACY(
-        "Privacy",
-        listOf(
-            "This app collects nothing, sends nothing and stores nothing outside your device. " +
-                "There is no account, no analytics, no crash reporting and no advertising ID.",
-            "It cannot reach the network at all. The app does not hold the INTERNET permission, " +
-                "neither in its own manifest nor through any library it is built on, so Android " +
-                "refuses any connection it might try to open. This is enforced by the operating " +
-                "system, not by the app's good behaviour, and you can check it yourself: the full " +
-                "permission list is on the Permissions page and in the app's entry in Settings.",
-            "Your alarms, timers, world clocks and preferences live in one file in the app's own " +
-                "private storage. Nothing else on the device can read it. Uninstalling the app " +
-                "deletes it.",
-            "Android's own backup may copy that file to your Google account if you have device " +
-                "backup switched on. That is a setting you control, in Settings › Google › Backup, " +
-                "and it is the only way any of this data leaves the phone.",
-            "Alarm sounds are played from the ringtones already on your device. Choosing one " +
-                "records which sound you picked, nothing more.",
-        ),
-    ),
-
-    PERMISSIONS(
-        "Permissions",
-        listOf(
-            "Alarms & reminders (USE_EXACT_ALARM) lets the app ring at the minute you set. " +
-                "Inexact alarms are batched by the system and can drift by many minutes, which " +
-                "is not an alarm.",
-            "Notifications (POST_NOTIFICATIONS) covers the ringing alarm, and the live timer and " +
-                "stopwatch you can control from the shade.",
-            "Full-screen notifications (USE_FULL_SCREEN_INTENT) let a ringing alarm take over a " +
-                "locked screen instead of arriving as a banner you have to find.",
-            "Run at startup (RECEIVE_BOOT_COMPLETED) is needed because alarms are held by the " +
-                "system and are lost on reboot, so the app re-arms them when the phone starts. " +
-                "It does nothing else at boot and does not stay running.",
-            "Foreground service (FOREGROUND_SERVICE, …_MEDIA_PLAYBACK) runs only while an alarm " +
-                "is actually ringing, so the audio is not killed mid-ring. Timers and the " +
-                "stopwatch use no service at all; their notifications tick by themselves.",
-            "Vibrate (VIBRATE) is for alarms and timers set to vibrate.",
-            "Keep awake (WAKE_LOCK) holds the screen on while an alarm rings.",
-            "There is no INTERNET permission, no location, no contacts, no storage and no " +
-                "microphone.",
-        ),
-    ),
-
-    // The OFL asks that the copyright notice and the licence travel *with the font software*, and
-    // an APK carrying two font binaries is a distribution of it. So the notices are here in the app
-    // and not only in the repository's THIRD-PARTY-NOTICES.md.
     LICENCES(
         "Licences",
         listOf(
