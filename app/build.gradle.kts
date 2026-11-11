@@ -9,7 +9,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.materialclock"
+        applicationId = "io.github.jaswantk917.samay"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
