@@ -84,7 +84,7 @@ fun Winder(
      * which is what makes it read as knurling rather than as a ruler.
      */
     stepRadians: Float = 0.080f,
-    majorEvery: Int = 5,
+    isMajor: (Int) -> Boolean = { it % 5 == 0 },
 ) {
     val snapSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     val scope = rememberCoroutineScope()
@@ -152,7 +152,7 @@ fun Winder(
                     val rounded = pos.roundToInt()
                     if (rounded != emitted) {
                         // the drum's texture: a low tick per graduation, a firmer one on the long marks
-                        haptics.play(if (rounded % majorEvery == 0) Haptic.Tap else Haptic.Segment)
+                        haptics.play(if (isMajor(rounded)) Haptic.Tap else Haptic.Segment)
                         emitted = rounded
                         onChange(rounded)
                     }
@@ -187,7 +187,7 @@ fun Winder(
 
             val x = cx + r * sin(theta)
             val inRange = unit >= range.first && unit <= range.last
-            val major = unit % majorEvery == 0 && inRange
+            val major = inRange && isMajor(unit)
 
             // Selection, smoothstepped on angular distance from the centre. There is no separate
             // handle: the graduation passing under the middle *becomes* the marker (growing,
