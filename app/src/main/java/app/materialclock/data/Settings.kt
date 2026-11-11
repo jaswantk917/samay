@@ -6,9 +6,7 @@ import java.time.DayOfWeek
 /**
  * Every preference the app has, in one tree.
  *
- * Grouped by the tab that owns them, because that is how they are reached: there is no settings
- * screen, only a settings sheet per tab, opened from that tab's own title. A flat bag would have
- * made it impossible to tell which sheet a new preference belongs on.
+ * Grouped by the tab they belong to, which is also how the one settings sheet is sectioned.
  */
 data class ClockSettings(
     val alarms: AlarmSettings = AlarmSettings(),
@@ -26,6 +24,8 @@ data class AlarmSettings(
 )
 
 data class WorldClockSettings(
+    /** Whether the World Clock tab is shown at all. */
+    val enabled: Boolean = true,
     val showSeconds: Boolean = false,
     val hourFormat: HourFormat = HourFormat.SYSTEM,
 )

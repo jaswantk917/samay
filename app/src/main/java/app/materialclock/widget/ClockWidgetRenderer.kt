@@ -1,6 +1,7 @@
 package app.materialclock.widget
 
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -44,6 +45,23 @@ object ClockWidgetRenderer {
 
         val views = build(context, config, settings, options)
         manager.updateAppWidget(appWidgetId, views)
+    }
+
+    /**
+     * The widget picker's preview, drawn by the same renderer the placed widget uses (Android 15+).
+     * The system rate-limits this call, so it only runs when no preview is stored yet.
+     */
+    suspend fun publishPreview(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
+        // the alarm receiver can start the app before first unlock, when settings can't be read
+        if (context.getSystemService(android.os.UserManager::class.java)?.isUserUnlocked != true) return
+        val manager = AppWidgetManager.getInstance(context)
+        val provider = ClockWidgetProvider.component(context)
+        val category = AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN
+        if (manager.getWidgetPreview(provider, android.os.Process.myUserHandle(), category) != null) return
+        val size = (160 * context.resources.displayMetrics.density).roundToInt()
+        val views = one(context, WidgetConfig(), ClockStore(context).settingsNow(), size, size)
+        manager.setWidgetPreview(provider, category, views)
     }
 
     /**

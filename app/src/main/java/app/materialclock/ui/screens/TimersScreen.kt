@@ -60,14 +60,18 @@ import java.time.Duration
  * A null timer *is* the setting state. There is no mode flag to fall out of step with the UI.
  */
 /**
- * The winder's stops in minutes, roughly logarithmic: every minute up to 10, then wider steps up to
- * three hours, so short timers get fine control and long ones don't take a dozen swipes.
+ * The winder's stops in seconds, roughly logarithmic: 5-second steps for short timers, then wider
+ * steps up to three hours, so a quick 15 s and a 2 h roast are both a short swipe away.
  */
 private val WIND_STOPS: List<Int> =
-    (0..10) + (12..20 step 2) + (25..60 step 5) + (70..120 step 10) + (135..180 step 15)
+    listOf(0, 5, 10, 15, 20, 30, 45) +
+        (60..300 step 30) +
+        (360..600 step 60) +
+        (720..1200 step 120) + (1500..3600 step 300) +
+        (4500..7200 step 900) + (9000..10800 step 1800)
 
 /** The long graduations: the round numbers people actually set. */
-private val WIND_MAJORS = setOf(5, 10, 20, 30, 45, 60, 90, 120, 150, 180)
+private val WIND_MAJORS = setOf(15, 30, 60, 120, 300, 600, 900, 1800, 2700, 3600, 5400, 7200, 10800)
 private const val RING_SIZE_DP = 300
 
 @Composable
@@ -127,7 +131,7 @@ private fun SetTimer(
         // Below the keypad and above Start: you type an exact value or wind to a rough one, and
         // the winder sits next to the button it feeds.
         Winder(
-            value = WIND_STOPS.indexOfLast { it <= total / 60 }.coerceAtLeast(0),
+            value = WIND_STOPS.indexOfLast { it <= total }.coerceAtLeast(0),
             range = WIND_STOPS.indices,
             onValueChange = { onWind(WIND_STOPS[it]) },
             isMajor = { WIND_STOPS.getOrNull(it) in WIND_MAJORS },

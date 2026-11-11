@@ -74,11 +74,8 @@ import app.materialclock.ui.screens.StopwatchScreen
 import app.materialclock.ui.screens.TimersScreen
 import app.materialclock.ui.screens.WorldClockScreen
 import app.materialclock.ui.sheets.AddCitySheet
+import app.materialclock.ui.sheets.SettingsSheet
 import app.materialclock.ui.sheets.AlarmEditSheet
-import app.materialclock.ui.sheets.AlarmSettingsSheet
-import app.materialclock.ui.sheets.StopwatchSettingsSheet
-import app.materialclock.ui.sheets.TimerSettingsSheet
-import app.materialclock.ui.sheets.WorldSettingsSheet
 import app.materialclock.ui.theme.ClockTheme
 
 /** Breathing room between the dock and the navigation bar. */
@@ -134,6 +131,9 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
         }
 
         val haptics = rememberHaptics()
+        LaunchedEffect(settings.world.enabled) {
+            if (!settings.world.enabled && tab == Tab.WORLD) tab = Tab.ALARMS
+        }
         val density = LocalDensity.current
         var headerHeight by remember { mutableStateOf(120.dp) }
 
@@ -216,7 +216,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                             nowElapsedMillis = now,
                             onDigit = vm::pressDigit,
                             onBackspace = vm::backspace,
-                            onWind = vm::windToMinutes,
+                            onWind = vm::windToSeconds,
                             onStart = { vm.startTimer() },
                             onPauseResume = { vm.pauseOrResumeTimer() },
                             onAddTen = { vm.addTenSeconds() },
@@ -256,7 +256,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
             )
 
             ClockDock(
-                destinations = Tab.entries,
+                destinations = Tab.entries.filter { it != Tab.WORLD || settings.world.enabled },
                 selected = tab,
                 onSelect = { if (it != tab) haptics.play(Haptic.Segment); tab = it },
                 // Timers and Stopwatch have nothing to add: you create those with the controls on
@@ -304,13 +304,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
         }
 
         if (showSettings) {
-            when (tab) {
-                Tab.ALARMS -> AlarmSettingsSheet(settings, vm::updateSettings) { showSettings = false }
-                Tab.WORLD -> WorldSettingsSheet(settings, vm::updateSettings) { showSettings = false }
-                Tab.TIMERS -> TimerSettingsSheet(settings, vm::updateSettings) { showSettings = false }
-                Tab.STOPWATCH ->
-                    StopwatchSettingsSheet(settings, vm::updateSettings) { showSettings = false }
-            }
+            SettingsSheet(settings, vm::updateSettings) { showSettings = false }
         }
     }
     }

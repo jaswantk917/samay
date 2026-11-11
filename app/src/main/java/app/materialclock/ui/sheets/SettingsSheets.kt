@@ -1,5 +1,6 @@
 package app.materialclock.ui.sheets
 
+import androidx.compose.animation.AnimatedVisibility
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -47,17 +48,10 @@ import app.materialclock.ui.theme.Palette
 import app.materialclock.widget.ClockWidgetProvider
 import app.materialclock.widget.WidgetEntryPoints
 
-/**
- * One sheet per tab, opened from that tab's own title.
- *
- * There is no settings *screen* and no gear. The title is the affordance, deliberately unmarked,
- * because the four preferences a clock has are ones you set once and giving them a permanent icon
- * in the app bar would cost more attention every day than it saves twice a year. Long-press would
- * have been more discoverable but is already spoken for on the world-clock rows.
- */
+/** The one settings sheet. Every tab's settings button opens this same sheet. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun AlarmSettingsSheet(
+fun SettingsSheet(
     settings: ClockSettings,
     onChange: ((ClockSettings) -> ClockSettings) -> Unit,
     onDismiss: () -> Unit,
@@ -67,36 +61,52 @@ fun AlarmSettingsSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            SheetTitle("Alarm settings")
-
-            ChoiceRow(
-                title = "Silence after",
-                value = settings.alarms.silenceAfterMinutes,
-                // 0 is "Never" (it rings until it is dismissed). Worth offering and worth putting
-                // last rather than first: it is the answer for someone the default fails, not the
-                // one to fall into by scrolling.
-                options = listOf(1, 5, 10, 15, 20, 25, 30, 0),
-                label = ::minutesLabel,
-                onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(silenceAfterMinutes = v)) } },
-            )
-            ChoiceRow(
-                title = "Snooze length",
-                value = settings.alarms.snoozeMinutes,
-                options = listOf(1, 5, 10, 15, 20, 30),
-                label = ::minutesLabel,
-                onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(snoozeMinutes = v)) } },
-            )
-            FullScreenIntentRow()
-            ChoiceRow(
-                title = "Start week on",
-                value = settings.alarms.weekStart,
-                options = WeekStart.entries,
-                label = { it.label },
-                onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(weekStart = v)) } },
-            )
-
+            SheetTitle("Settings")
+            AlarmSection(settings, onChange)
+            TimerSection(settings, onChange)
+            WorldSection(settings, onChange)
+            AppearanceSection(settings, onChange)
+            SectionLabel("Widgets")
+            WidgetRows()
+            AboutRows()
+            Spacer(Modifier.height(8.dp))
         }
     }
+}
+
+@Composable
+private fun AlarmSection(
+    settings: ClockSettings,
+    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
+) {
+    SectionLabel("Alarms")
+
+    ChoiceRow(
+        title = "Silence after",
+        value = settings.alarms.silenceAfterMinutes,
+        // 0 is "Never" (it rings until it is dismissed). Worth offering and worth putting
+        // last rather than first: it is the answer for someone the default fails, not the
+        // one to fall into by scrolling.
+        options = listOf(1, 5, 10, 15, 20, 25, 30, 0),
+        label = ::minutesLabel,
+        onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(silenceAfterMinutes = v)) } },
+    )
+    ChoiceRow(
+        title = "Snooze length",
+        value = settings.alarms.snoozeMinutes,
+        options = listOf(1, 5, 10, 15, 20, 30),
+        label = ::minutesLabel,
+        onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(snoozeMinutes = v)) } },
+    )
+    FullScreenIntentRow()
+    ChoiceRow(
+        title = "Start week on",
+        value = settings.alarms.weekStart,
+        options = WeekStart.entries,
+        label = { it.label },
+        onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(weekStart = v)) } },
+    )
+
 }
 
 /**
@@ -252,82 +262,60 @@ private fun Swatch(
     }
 }
 
-/**
- * Appearance and widgets, on the Stopwatch tab.
- *
- * They are app-wide rather than stopwatch-specific, and they used to hang off the alarm sheet
- * purely because that was the first sheet to exist. That made the longest settings screen in the
- * app the one for the feature with the most settings of its own. Stopwatch had none at all, so the
- * two shared concerns live here and each sheet is now about one thing.
- */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun StopwatchSettingsSheet(
+private fun AppearanceSection(
     settings: ClockSettings,
     onChange: ((ClockSettings) -> ClockSettings) -> Unit,
-    onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            SheetTitle("Appearance")
-            ChoiceRow(
-                title = "Theme",
-                value = settings.theme.darkMode,
-                options = DarkMode.entries,
-                label = { it.label },
-                onSelect = { v -> onChange { it.copy(theme = it.theme.copy(darkMode = v)) } },
-            )
-            SwitchRow(
-                title = "Pure black",
-                subtitle = "True black surfaces in dark mode, for OLED screens",
-                checked = settings.theme.amoledBlack,
-                onChange = { v -> onChange { it.copy(theme = it.theme.copy(amoledBlack = v)) } },
-            )
-            SwitchRow(
-                title = "Blur under the bars",
-                subtitle = "Lists melt into the top and bottom edges. Heavy on some phones",
-                checked = settings.theme.blur,
-                onChange = { v -> onChange { it.copy(theme = it.theme.copy(blur = v)) } },
-            )
+    SectionLabel("Appearance")
+    ChoiceRow(
+        title = "Theme",
+        value = settings.theme.darkMode,
+        options = DarkMode.entries,
+        label = { it.label },
+        onSelect = { v -> onChange { it.copy(theme = it.theme.copy(darkMode = v)) } },
+    )
+    SwitchRow(
+        title = "Pure black",
+        subtitle = "True black surfaces in dark mode, for OLED screens",
+        checked = settings.theme.amoledBlack,
+        onChange = { v -> onChange { it.copy(theme = it.theme.copy(amoledBlack = v)) } },
+    )
+    SwitchRow(
+        title = "Blur under the bars",
+        subtitle = "Lists melt into the top and bottom edges. Heavy on some phones",
+        checked = settings.theme.blur,
+        onChange = { v -> onChange { it.copy(theme = it.theme.copy(blur = v)) } },
+    )
 
-            // Always on show, with the wallpaper as the first swatch rather than as a switch
-            // somewhere above them. Hiding the palettes behind "wallpaper colours: off" meant that
-            // on a fresh install, where wallpaper colour is the default, the theme picker looked
-            // like it did not exist.
-            PaletteRow(
-                dynamic = settings.theme.dynamicColor,
-                selected = settings.theme.palette,
-                onDynamic = { onChange { it.copy(theme = it.theme.copy(dynamicColor = true)) } },
-                onSelect = { v ->
-                    onChange { it.copy(theme = it.theme.copy(palette = v, dynamicColor = false)) }
-                },
-            )
+    // Always on show, with the wallpaper as the first swatch rather than as a switch
+    // somewhere above them. Hiding the palettes behind "wallpaper colours: off" meant that
+    // on a fresh install, where wallpaper colour is the default, the theme picker looked
+    // like it did not exist.
+    PaletteRow(
+        dynamic = settings.theme.dynamicColor,
+        selected = settings.theme.palette,
+        onDynamic = { onChange { it.copy(theme = it.theme.copy(dynamicColor = true)) } },
+        onSelect = { v ->
+            onChange { it.copy(theme = it.theme.copy(palette = v, dynamicColor = false)) }
+        },
+    )
 
-            SectionLabel("Widgets")
-            WidgetRows()
-
-            AboutRows()
-            Spacer(Modifier.height(8.dp))
-        }
-    }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun WorldSettingsSheet(
+private fun WorldSection(
     settings: ClockSettings,
     onChange: ((ClockSettings) -> ClockSettings) -> Unit,
-    onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(Modifier.padding(bottom = 32.dp)) {
-            SheetTitle("World clock settings")
+    SectionLabel("World clock")
+    SwitchRow(
+        title = "Show World Clock",
+        checked = settings.world.enabled,
+        onChange = { v -> onChange { it.copy(world = it.world.copy(enabled = v)) } },
+    )
+    AnimatedVisibility(settings.world.enabled) {
+        Column {
             SwitchRow(
                 title = "Display time with seconds",
                 checked = settings.world.showSeconds,
@@ -344,60 +332,51 @@ fun WorldSettingsSheet(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun TimerSettingsSheet(
+private fun TimerSection(
     settings: ClockSettings,
     onChange: ((ClockSettings) -> ClockSettings) -> Unit,
-    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val picked: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            }
-            onChange { it.copy(timers = it.timers.copy(soundUri = picked?.toString() ?: SILENT)) }
+    val picked: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+    }
+    onChange { it.copy(timers = it.timers.copy(soundUri = picked?.toString() ?: SILENT)) }
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(Modifier.padding(bottom = 32.dp)) {
-            SheetTitle("Timer settings")
-            NavigateRow(
-                title = "Timer sound",
-                subtitle = when (val u = settings.timers.soundUri) {
-                    null -> "Default alarm sound"
-                    SILENT -> "Silent"
-                    else -> runCatching {
-                        RingtoneManager.getRingtone(context, Uri.parse(u))?.getTitle(context)
-                    }.getOrNull() ?: "Default alarm sound"
-                },
-                onClick = {
-                    picker.launch(
-                        Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
-                            .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                            .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Timer sound")
-                            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
-                    )
-                },
+    SectionLabel("Timers")
+    NavigateRow(
+        title = "Timer sound",
+        subtitle = when (val u = settings.timers.soundUri) {
+            null -> "Default alarm sound"
+            SILENT -> "Silent"
+            else -> runCatching {
+                RingtoneManager.getRingtone(context, Uri.parse(u))?.getTitle(context)
+            }.getOrNull() ?: "Default alarm sound"
+        },
+        onClick = {
+            picker.launch(
+                Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Timer sound")
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
             )
-            SwitchRow(
-                title = "Timer vibrate",
-                checked = settings.timers.vibrate,
-                onChange = { v -> onChange { it.copy(timers = it.timers.copy(vibrate = v)) } },
-            )
-        }
-    }
+        },
+    )
+    SwitchRow(
+        title = "Timer vibrate",
+        checked = settings.timers.vibrate,
+        onChange = { v -> onChange { it.copy(timers = it.timers.copy(vibrate = v)) } },
+    )
 }
 
 /** 0 is never, 1 is singular. Both of these read wrong the moment they are not special-cased. */

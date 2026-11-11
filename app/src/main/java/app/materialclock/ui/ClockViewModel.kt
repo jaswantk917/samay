@@ -190,8 +190,9 @@ class ClockViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The winder. Sets whole minutes, which is what a spring-wound dial can actually express. */
-    fun windToMinutes(minutes: Int) {
-        timerDigits = if (minutes <= 0) "" else "%d%02d00".format(minutes / 60, minutes % 60).trimStart('0')
+    fun windToSeconds(seconds: Int) {
+        timerDigits = if (seconds <= 0) "" else
+            "%d%02d%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60).trimStart('0')
     }
 
     fun startTimer(label: String = "Timer") = viewModelScope.launch {
