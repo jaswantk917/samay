@@ -1,5 +1,11 @@
 package app.materialclock.ui
 
+import app.materialclock.core.TimerState
+import kotlinx.coroutines.flow.drop
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.HorizontalPager
 import android.Manifest
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -131,9 +137,17 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
         }
 
         val haptics = rememberHaptics()
-        LaunchedEffect(settings.world.enabled) {
-            if (!settings.world.enabled && tab == Tab.WORLD) tab = Tab.ALARMS
+        val tabs = Tab.entries.filter { it != Tab.WORLD || settings.world.enabled }
+        val currentTabs by rememberUpdatedState(tabs)
+        val pager = rememberPagerState(initialPage = tabs.indexOf(tab).coerceAtLeast(0)) { tabs.size }
+        LaunchedEffect(pager) {
+            snapshotFlow { pager.currentPage }.collect { tab = currentTabs.getOrElse(it) { Tab.ALARMS } }
         }
+        LaunchedEffect(pager) {
+            snapshotFlow { pager.currentPage }.drop(1).collect { haptics.play(Haptic.Segment) }
+        }
+        // hiding World Clock shifts the pages; stay on the same tab, or fall back to Alarms
+        LaunchedEffect(tabs) { pager.scrollToPage(tabs.indexOf(tab).coerceAtLeast(0)) }
         val density = LocalDensity.current
         var headerHeight by remember { mutableStateOf(120.dp) }
 
@@ -159,22 +173,36 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
             val body = PaddingValues(start = 16.dp, end = 16.dp, top = headerHeight, bottom = underDock)
             val edgeToEdge = PaddingValues(top = headerHeight, bottom = underDock)
 
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "tab",
+            HorizontalPager(
+                state = pager,
                 modifier = Modifier.fillMaxSize().edgeBlur(
                     top = headerHeight,
                     bottom = navBottom + DOCK_HEIGHT + DOCK_CLEARANCE,
                 ),
-            ) { current ->
-                when (current) {
+            ) { page ->
+                when (tabs[page]) {
                     Tab.ALARMS -> {
                         AlarmsScreen(
                             alarms = alarms,
                             weekStart = settings.alarms.weekStart,
-                            onToggle = vm::toggleAlarm,
-                            onEdit = { editing = it },
+                            onToggle = { id ->
+                                val on = alarms.firstOrNull { it.id == id }?.enabled == true
+                                haptics.play(if (on) Haptic.ToggleOff else Haptic.ToggleOn)
+                                vm.toggleAlarm(id)
+                            },
+                            onEdit = { haptics.play(Haptic.Tap); editing = it },
+                            onDelete = { alarm ->
+                                haptics.play(Haptic.Delete)
+                                vm.deleteAlarm(alarm.id)
+                                scope.launch {
+                                    val r = snackbar.showSnackbar(
+                                        message = "Alarm deleted",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short,
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) vm.saveAlarm(alarm)
+                                }
+                            },
                             contentPadding = body,
                         )
                     }
@@ -190,6 +218,7 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                             // Swiping a city away is instant and undoable, rather than instant and
                             // final or safe and nagging.
                             onRemove = { city ->
+                                haptics.play(Haptic.Delete)
                                 vm.removeCity(city.zone)
                                 scope.launch {
                                     val r = snackbar.showSnackbar(
@@ -214,13 +243,20 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                             timer = timer,
                             draft = vm.draftDuration,
                             nowElapsedMillis = now,
-                            onDigit = vm::pressDigit,
-                            onBackspace = vm::backspace,
+                            onDigit = { haptics.play(Haptic.Tap); vm.pressDigit(it) },
+                            onBackspace = { haptics.play(Haptic.Tap); vm.backspace() },
+                            onClear = { haptics.play(Haptic.Delete); vm.clearDraft() },
                             onWind = vm::windToSeconds,
-                            onStart = { vm.startTimer() },
-                            onPauseResume = { vm.pauseOrResumeTimer() },
-                            onAddTen = { vm.addTenSeconds() },
-                            onCancel = { vm.cancelTimer() },
+                            onStart = {
+                                if (!vm.draftDuration.isZero) haptics.play(Haptic.Confirm)
+                                vm.startTimer()
+                            },
+                            onPauseResume = {
+                                haptics.play(if (timer?.state == TimerState.RUNNING) Haptic.ToggleOff else Haptic.ToggleOn)
+                                vm.pauseOrResumeTimer()
+                            },
+                            onAddTen = { haptics.play(Haptic.Tap); vm.addTenSeconds() },
+                            onCancel = { haptics.play(Haptic.Delete); vm.cancelTimer() },
                             contentPadding = edgeToEdge,
                         )
                     }
@@ -231,9 +267,12 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
                         StopwatchScreen(
                             stopwatch = sw,
                             nowElapsedMillis = now,
-                            onToggle = { vm.toggleStopwatch() },
-                            onLap = { vm.lap() },
-                            onReset = { vm.resetStopwatch() },
+                            onToggle = {
+                                haptics.play(if (sw.running) Haptic.ToggleOff else Haptic.ToggleOn)
+                                vm.toggleStopwatch()
+                            },
+                            onLap = { haptics.play(Haptic.Tap); vm.lap() },
+                            onReset = { haptics.play(Haptic.Delete); vm.resetStopwatch() },
                             contentPadding = edgeToEdge,
                         )
                     }
@@ -256,9 +295,9 @@ fun ClockApp(startTab: String? = null, vm: ClockViewModel = viewModel()) {
             )
 
             ClockDock(
-                destinations = Tab.entries.filter { it != Tab.WORLD || settings.world.enabled },
+                destinations = tabs,
                 selected = tab,
-                onSelect = { if (it != tab) haptics.play(Haptic.Segment); tab = it },
+                onSelect = { t -> scope.launch { pager.animateScrollToPage(tabs.indexOf(t)) } },
                 // Timers and Stopwatch have nothing to add: you create those with the controls on
                 // the screen itself. The button therefore leaves rather than sitting there inert.
                 showAdd = tab == Tab.ALARMS || tab == Tab.WORLD,

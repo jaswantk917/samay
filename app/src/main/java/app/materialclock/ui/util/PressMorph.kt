@@ -42,3 +42,15 @@ fun pressMorph(rest: RoundedPolygon, pressed: RoundedPolygon, interaction: Inter
     )
     return remember(morph, progress) { MorphShape(morph, progress) }
 }
+
+/** Melts [off] into [on] as [isOn] flips, for a selection that should change shape, not only fill. */
+@Composable
+fun stateMorph(off: RoundedPolygon, on: RoundedPolygon, isOn: Boolean): Shape {
+    val morph = remember(off, on) { Morph(off, on) }
+    val progress by animateFloatAsState(
+        if (isOn) 1f else 0f,
+        MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "stateMorph",
+    )
+    return remember(morph, progress) { MorphShape(morph, progress) }
+}

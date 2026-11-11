@@ -1,5 +1,7 @@
 package app.materialclock.widget
 
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -98,6 +100,7 @@ fun WidgetConfigScreen(
     onCancel: () -> Unit,
     onSave: (WidgetConfig) -> Unit,
 ) {
+    val haptics = rememberHaptics()
     var config by remember(initial) { mutableStateOf(initial) }
     var custom by rememberSaveable { mutableStateOf(false) }
 
@@ -268,13 +271,13 @@ fun WidgetConfigScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(
-                    onClick = { if (custom) custom = false else onCancel() },
+                    onClick = { haptics.play(Haptic.Tap); if (custom) custom = false else onCancel() },
                     modifier = Modifier.weight(1f).height(56.dp),
                 ) {
                     Text(if (custom) "Back" else "Cancel")
                 }
                 Button(
-                    onClick = { onSave(config) },
+                    onClick = { haptics.play(Haptic.Confirm); onSave(config) },
                     modifier = Modifier.weight(1.6f).height(56.dp),
                 ) {
                     Text(if (isNew) "Add widget" else "Save")
@@ -301,6 +304,7 @@ private fun PresetGrid(
     onPreset: (WidgetPreset) -> Unit,
     onCustom: () -> Unit,
 ) {
+    val haptics = rememberHaptics()
     val matched = WidgetPreset.matching(config)
     val rows = (WidgetPreset.entries.map<WidgetPreset, Any> { it } + CUSTOM_TILE).chunked(2)
 
@@ -320,13 +324,13 @@ private fun PresetGrid(
                             selected = matched == cell,
                             settings = settings,
                             modifier = Modifier.weight(1f),
-                            onClick = { onPreset(cell) },
+                            onClick = { haptics.play(Haptic.Segment); onPreset(cell) },
                         )
                     } else {
                         CustomTile(
                             selected = matched == null,
                             modifier = Modifier.weight(1f),
-                            onClick = onCustom,
+                            onClick = { haptics.play(Haptic.Tap); onCustom() },
                         )
                     }
                 }

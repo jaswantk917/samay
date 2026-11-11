@@ -46,7 +46,7 @@ object FaceRenderer {
      * Returns the bitmap along with the `Rmin` and centre the hands must be scaled against, so the
      * two renderers cannot disagree about where the middle of the clock is.
      */
-    class Face(val bitmap: Bitmap, val rMin: Float, val cx: Float, val cy: Float)
+    class Face(val bitmap: Bitmap, val rMin: Float, val cx: Float, val cy: Float, val bounds: android.graphics.RectF)
 
     fun render(context: Context, config: WidgetConfig, colours: Colours, w: Int, h: Int): Face {
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -98,7 +98,8 @@ object FaceRenderer {
         drawIndices(context, canvas, config, colours, outline, path, r)
         drawNumerals(context, canvas, config, colours, outline, r)
 
-        return Face(bitmap, r, wf / 2f, hf / 2f)
+        val bounds = android.graphics.RectF().also { path.computeBounds(it, true) }
+        return Face(bitmap, r, wf / 2f, hf / 2f, bounds)
     }
 
     /** Dots or ticks at the hour positions the numerals do not occupy. */

@@ -1,5 +1,8 @@
 package app.materialclock.ui.screens
 
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -194,13 +197,19 @@ fun WidePill(
      */
     contentAlpha: Float = 1f,
 ) {
+    val fill by animateColorAsState(if (outlined) Color.Transparent else container, label = "pillFill")
+    val ink by animateColorAsState(content, label = "pillInk")
     androidx.compose.material3.Button(
         onClick = onClick,
         modifier = modifier.then(if (fillWidth) Modifier.fillMaxWidth() else Modifier).height(height),
-        shape = CircleShape,
+        // squashes from a capsule toward a squircle while held, and springs back
+        shapes = androidx.compose.material3.ButtonDefaults.shapes(
+            shape = RoundedCornerShape(percent = 50),
+            pressedShape = RoundedCornerShape(percent = 24),
+        ),
         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = if (outlined) Color.Transparent else container,
-            contentColor = content,
+            containerColor = fill,
+            contentColor = ink,
         ),
         border = if (outlined) {
             androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant)

@@ -1,5 +1,10 @@
 package app.materialclock.ui.sheets
 
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.drop
+import androidx.compose.runtime.snapshotFlow
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -109,6 +114,11 @@ fun AlarmEditSheet(
         // another tab, and a picker disagreeing with every other picker on the phone is a bug.
         is24Hour = android.text.format.DateFormat.is24HourFormat(context),
     )
+    val haptics = rememberHaptics()
+    // the dial's texture: a tick each time the hour or minute under the finger changes
+    LaunchedEffect(timeState) {
+        snapshotFlow { timeState.hour to timeState.minute }.drop(1).collect { haptics.play(Haptic.Segment) }
+    }
 
     /** Every exit but Cancel runs this. */
     fun commitAndClose() {
@@ -201,6 +211,7 @@ fun AlarmEditSheet(
             ) {
                 FilledTonalButton(
                     onClick = {
+                        haptics.play(Haptic.Tap)
                         ringtonePicker.launch(
                             Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
                                 .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
@@ -229,7 +240,7 @@ fun AlarmEditSheet(
                 // it is on, so it reads without relying on colour.
                 FilledIconToggleButton(
                     checked = vibrate,
-                    onCheckedChange = { vibrate = it },
+                    onCheckedChange = { haptics.play(if (it) Haptic.ToggleOn else Haptic.ToggleOff); vibrate = it },
                     shapes = IconButtonDefaults.toggleableShapes(),
                     modifier = Modifier.size(ROW_H),
                 ) {
@@ -251,7 +262,7 @@ fun AlarmEditSheet(
             ) {
                 if (onDelete != null) {
                     FilledTonalButton(
-                        onClick = { onDelete(initial.id); onDismiss() },
+                        onClick = { haptics.play(Haptic.Delete); onDelete(initial.id); onDismiss() },
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -264,14 +275,14 @@ fun AlarmEditSheet(
                 }
                 // Outlined, because discarding is a retreat and should not compete for the eye.
                 OutlinedButton(
-                    onClick = { discard = true; onDismiss() },
+                    onClick = { haptics.play(Haptic.Tap); discard = true; onDismiss() },
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.weight(1.2f).height(ROW_H),
                 ) {
                     Text("Cancel", style = MaterialTheme.typography.labelLargeEmphasized)
                 }
                 Button(
-                    onClick = { commitAndClose() },
+                    onClick = { haptics.play(Haptic.Confirm); commitAndClose() },
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.weight(if (onDelete != null) 1.8f else 2.4f).height(ROW_H),
                 ) {
@@ -446,10 +457,11 @@ private fun DayToggles(order: List<DayOfWeek>, selected: Set<DayOfWeek>, onToggl
         Modifier.fillMaxWidth().padding(horizontal = EDGE - 4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        val haptics = rememberHaptics()
         order.forEach { day ->
             ToggleButton(
                 checked = day in selected,
-                onCheckedChange = { onToggle(day) },
+                onCheckedChange = { on -> haptics.play(if (on) Haptic.ToggleOn else Haptic.ToggleOff); onToggle(day) },
                 contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.weight(1f).height(52.dp),
             ) {

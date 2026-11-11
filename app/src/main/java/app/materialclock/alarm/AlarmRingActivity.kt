@@ -1,5 +1,7 @@
 package app.materialclock.alarm
 
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
 import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.content.Context
@@ -130,6 +132,7 @@ private fun Ringing(
 ) {
     val now by rememberWallTicker()
     val time = LocalTime.now()
+    val haptics = rememberHaptics()
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -156,7 +159,7 @@ private fun Ringing(
         Spacer(Modifier.height(56.dp))
         WidePill(
             text = "Dismiss",
-            onClick = onDismiss,
+            onClick = { haptics.play(Haptic.Success); onDismiss() },
             container = MaterialTheme.colorScheme.tertiaryContainer,
             content = MaterialTheme.colorScheme.onTertiaryContainer,
             height = 96.dp,
@@ -165,7 +168,7 @@ private fun Ringing(
         Spacer(Modifier.height(12.dp))
         WidePill(
             text = "Snooze $snoozeMinutes min",
-            onClick = onSnooze,
+            onClick = { haptics.play(Haptic.Tap); onSnooze() },
             outlined = true,
             content = MaterialTheme.colorScheme.onSurface,
             height = 72.dp,

@@ -1,5 +1,14 @@
 package app.materialclock.ui.sheets
 
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
 import app.materialclock.ui.util.Haptic
 import app.materialclock.ui.util.rememberHaptics
 import androidx.compose.foundation.clickable
@@ -71,11 +80,12 @@ fun <T> ChoiceRow(
     onSelect: (T) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(label(value)) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable { open = true },
+        modifier = Modifier.clickable { haptics.play(Haptic.Tap); open = true },
     )
     if (open) {
         AlertDialog(
@@ -92,6 +102,7 @@ fun <T> ChoiceRow(
                                     selected = option == value,
                                     role = Role.RadioButton,
                                     onClick = {
+                                        haptics.play(Haptic.Segment)
                                         onSelect(option)
                                         open = false
                                     },
@@ -115,11 +126,12 @@ fun <T> ChoiceRow(
 /** A row that opens something else (a system picker, a sub-sheet). */
 @Composable
 fun NavigateRow(title: String, subtitle: String?, onClick: () -> Unit) {
+    val haptics = rememberHaptics()
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = subtitle?.let { { Text(it, maxLines = 1) } },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.clickable { haptics.play(Haptic.Tap); onClick() },
     )
 }
 
@@ -141,4 +153,71 @@ fun SectionLabel(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 4.dp),
     )
+}
+
+/**
+ * A settings row the way Tring draws them: an icon, a title, one plain line, and the control on
+ * the right. Tapping the row does what the control does, so the whole row is the target.
+ */
+@Composable
+fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    line: String? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: @Composable () -> Unit = {},
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (line != null) {
+                Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        trailing()
+    }
+}
+
+/** A [SettingRow] with a switch; the row and the switch both flip it. */
+@Composable
+fun SettingSwitch(icon: ImageVector, title: String, line: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val haptics = rememberHaptics()
+    val flip: (Boolean) -> Unit = { on -> haptics.play(if (on) Haptic.ToggleOn else Haptic.ToggleOff); onChange(on) }
+    SettingRow(icon, title, line, onClick = { flip(!checked) }) {
+        Switch(checked = checked, onCheckedChange = flip)
+    }
+}
+
+/** A short single choice as connected buttons under its [SettingRow], so every option is in view. */
+@Composable
+fun <T> ChoiceGroup(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
+    val haptics = rememberHaptics()
+    Row(
+        Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        options.forEachIndexed { i, option ->
+            ToggleButton(
+                checked = option == selected,
+                onCheckedChange = { if (option != selected) { haptics.play(Haptic.Segment); onSelect(option) } },
+                shapes = when (i) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                contentPadding = PaddingValues(horizontal = 4.dp),
+                modifier = Modifier.weight(1f),
+            ) { Text(label(option), maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelLarge) }
+        }
+    }
 }

@@ -1,6 +1,31 @@
 package app.materialclock.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.toShape
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.animateColorAsState
+import app.materialclock.ui.util.pressScale
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -129,12 +154,30 @@ fun AlarmsScreen(
     weekStart: WeekStart,
     onToggle: (Long) -> Unit,
     onEdit: (Alarm) -> Unit,
+    onDelete: (Alarm) -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
     // The setting reaches all the way into the tile, not only into the editor. An app that starts
     // the week on Monday in the picker and on Sunday in the grid is worse than one with no setting.
     val order = remember(weekStart) { weekStart.order(systemFirstDay()) }
+    if (alarms.isEmpty()) {
+        Column(
+            modifier.fillMaxSize().padding(contentPadding),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.size(96.dp).clip(MaterialShapes.Cookie12Sided.toShape()).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Alarm, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(40.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            Text("No alarms", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = modifier.fillMaxSize(),
@@ -143,7 +186,14 @@ fun AlarmsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(alarms, key = { it.id }) { alarm ->
-            AlarmTile(alarm, order, onToggle = { onToggle(alarm.id) }, onEdit = { onEdit(alarm) })
+            AlarmTile(
+                alarm,
+                order,
+                onToggle = { onToggle(alarm.id) },
+                onEdit = { onEdit(alarm) },
+                onDelete = { onDelete(alarm) },
+                modifier = Modifier.animateItem(),
+            )
         }
     }
 }
@@ -323,21 +373,40 @@ private fun AlarmTile(
     order: List<DayOfWeek>,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val armed = alarm.enabled
-    val container =
-        if (armed) MaterialTheme.colorScheme.tertiaryContainer
-        else MaterialTheme.colorScheme.surfaceContainer
-    val ink =
-        if (armed) MaterialTheme.colorScheme.onTertiaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant
+    val haptics = rememberHaptics()
+    val press = remember { MutableInteractionSource() }
+    var menu by remember { mutableStateOf(false) }
+    val container by animateColorAsState(
+        if (armed) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "tileFill",
+    )
+    val ink by animateColorAsState(
+        if (armed) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "tileInk",
+    )
+    // arming pops the tile up for a beat; disarming lets it settle back a touch
+    val pop = remember { Animatable(1f) }
+    var lastArmed by remember { mutableStateOf(armed) }
+    LaunchedEffect(armed) {
+        if (armed != lastArmed) {
+            pop.animateTo(if (armed) 1.05f else 0.97f, spring(stiffness = Spring.StiffnessHigh))
+            pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow))
+        }
+        lastArmed = armed
+    }
     val weight = if (armed) ClockFace.WEIGHT_ON else ClockFace.WEIGHT_OFF
 
     val hour12 = (alarm.time.hour % 12).takeIf { it != 0 } ?: 12
     val meridiem = if (alarm.time.hour < 12) "AM" else "PM"
     val minutesText = "%02d".format(alarm.time.minute)
 
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
     val tileWidth = maxWidth
     val inset = CONTENT_INSET_DP.dp
     // Sized to fill the tile's **width**, which is the only dimension the grid fixes. `06:40` and
@@ -369,7 +438,15 @@ private fun AlarmTile(
         modifier = Modifier
             .fillMaxWidth()
             .height(tileHeight)
-            .clickable(onClick = onEdit)
+            .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
+            .pressScale(press)
+            .combinedClickable(
+                interactionSource = press,
+                indication = LocalIndication.current,
+                onLongClick = { haptics.play(Haptic.Hold); menu = true },
+                onLongClickLabel = "Delete",
+                onClick = onEdit,
+            )
             // One announcement for the whole tile. Otherwise a screen reader finds a bare Switch
             // beside a time it reads out digit by digit, and seven unlabelled day letters.
             .clearAndSetSemantics {
@@ -398,6 +475,13 @@ private fun AlarmTile(
             // of invisible touch target below its 32 dp track, so the row's *box* has to stop that
             // much higher for the track you can see to land on the line.
             Box(Modifier.fillMaxSize()) {
+                DropdownMenu(menu, onDismissRequest = { menu = false }, shape = MaterialTheme.shapes.large) {
+                    DropdownMenuItem(
+                        text = { Text("Delete") },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, null) },
+                        onClick = { menu = false; onDelete() },
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()

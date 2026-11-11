@@ -1,5 +1,12 @@
 package app.materialclock.ui.screens
 
+import app.materialclock.ui.util.pressScale
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
@@ -24,9 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxState
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -203,20 +207,7 @@ private fun CityDial(
  * ordinary list; at 128 the time can be set at display size, which is the point. The time is the
  * content and the city is its label, not the other way round.
  */
-/**
- * A city, removable by swiping it away to the left.
- *
- * `SwipeToDismissBox` is the component for this, and the spec's rule for a swipeable container is
- * "one swipe action", which is why only end-to-start is enabled and start-to-end is off, rather
- * than offering two directions that do the same thing. The revealed layer is the error container
- * with a trailing bin, which is the standard destructive treatment and reads before the row has
- * travelled far enough to commit.
- *
- * It replaces a long-press and a confirmation dialog. The dialog was defensible while the gesture
- * was invisible; with a swipe, the gesture is deliberate enough to stand on its own, and the safety
- * net moves to an Undo snackbar. That is both the documented mitigation and less work to use than a
- * dialog you have to answer every time.
- */
+/** Hold a city to remove it. Sideways swipes belong to the tabs, so rows have none. */
 @OptIn(ExperimentalFoundationApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun CityRow(
@@ -240,47 +231,17 @@ private fun CityRow(
         if (!use24h) append(if (local.hour < 12) "am" else "pm")
     }
 
-    // A plain `remember`, not `rememberSwipeToDismissBoxState`.
-    //
-    // That helper is *saveable* and LazyColumn restores saved state per item key, so a city that
-    // is swiped away and then comes back, whether by Undo or by adding it again, lands on its old
-    // saved `EndToStart` value. `SwipeToDismissBox` then sees a box that is already dismissed and
-    // fires `onDismiss` on its first composition, deleting the row the instant it returns. The
-    // symptom is baffling from the outside: the store logs the city restored and the screen stays
-    // empty. Swipe offset is transient gesture state and has no business outliving the row.
-    val state = remember(city.zone.id) {
-        SwipeToDismissBoxState(
-            initialValue = SwipeToDismissBoxValue.Settled,
-            positionalThreshold = { distance: Float -> distance * 0.5f },
-        )
-    }
-    SwipeToDismissBox(
-        state = state,
-        modifier = modifier,
-        // One swipe action per container, per the spec. Two directions doing the same thing is not
-        // twice the affordance, it is a coin flip about whether the row came back.
-        enableDismissFromStartToEnd = false,
-        onDismiss = { onRemove() },
-        backgroundContent = {
-            Surface(
-                color = MaterialTheme.colorScheme.errorContainer,
-                shape = RoundedCornerShape(percent = 50),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(ROW_HEIGHT_DP.dp),
-            ) {
-                Box(Modifier.fillMaxSize().padding(end = 32.dp), Alignment.CenterEnd) {
-                    Icon(
-                        Icons.Outlined.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
-            }
-        },
-    ) {
+    val haptics = rememberHaptics()
+    val press = remember { MutableInteractionSource() }
+    var menu by remember { mutableStateOf(false) }
+    Box(modifier) {
+        DropdownMenu(menu, onDismissRequest = { menu = false }, shape = MaterialTheme.shapes.large) {
+            DropdownMenuItem(
+                text = { Text("Remove") },
+                leadingIcon = { Icon(Icons.Outlined.Delete, null) },
+                onClick = { menu = false; onRemove() },
+            )
+        }
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainer,
             shape = RoundedCornerShape(percent = 50),
@@ -288,6 +249,14 @@ private fun CityRow(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .height(ROW_HEIGHT_DP.dp)
+                .pressScale(press)
+                .combinedClickable(
+                    interactionSource = press,
+                    indication = null,
+                    onLongClick = { haptics.play(Haptic.Hold); menu = true },
+                    onLongClickLabel = "Remove",
+                    onClick = {},
+                )
                 .semantics {
                     // A swipe is a gesture, and a gesture is invisible to a screen reader. The same
                     // action has to exist as a verb it can announce and perform.

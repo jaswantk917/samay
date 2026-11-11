@@ -1,5 +1,7 @@
 package app.materialclock.ui.sheets
 
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
@@ -55,6 +57,7 @@ fun AddCitySheet(
     onAdd: (WorldCity) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val haptics = rememberHaptics()
     var query by rememberSaveable { mutableStateOf("") }
     val taken = remember(existing) { existing.map { it.zone.id }.toSet() }
 
@@ -105,6 +108,7 @@ fun AddCitySheet(
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.clickable {
+                            haptics.play(Haptic.Confirm)
                             onAdd(city)
                             onDismiss()
                         },

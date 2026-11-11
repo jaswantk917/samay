@@ -46,7 +46,7 @@ enum class Palette(val displayName: String, val light: ColorScheme, val dark: Co
     EXPRESSIVE("Expressive", expressiveLightColorScheme(), darkColorScheme()),
 
     CONCEPT(
-        "Concept",
+        "Samay",
         lightColorScheme(
         primary = Color(0xFF6750A4),
         onPrimary = Color(0xFFFDF7FF),

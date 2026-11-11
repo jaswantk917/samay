@@ -1,6 +1,5 @@
 package app.materialclock.ui.sheets
 
-import androidx.compose.animation.AnimatedVisibility
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -8,29 +7,48 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AlarmOff
+import androidx.compose.material.icons.rounded.AvTimer
+import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Snooze
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -45,8 +63,12 @@ import app.materialclock.data.DarkMode
 import app.materialclock.data.HourFormat
 import app.materialclock.data.WeekStart
 import app.materialclock.ui.theme.Palette
-import app.materialclock.widget.ClockWidgetProvider
+import app.materialclock.ui.util.Haptic
+import app.materialclock.ui.util.SheetColumn
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.stateMorph
 import app.materialclock.widget.WidgetEntryPoints
+import androidx.compose.material.icons.rounded.Palette as PaletteIcon
 
 /** The one settings sheet. Every tab's settings button opens this same sheet. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -60,16 +82,21 @@ fun SettingsSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
-            SheetTitle("Settings")
+        SheetColumn(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 24.dp),
+        ) {
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.headlineMediumEmphasized,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            Spacer(Modifier.height(16.dp))
             AlarmSection(settings, onChange)
             TimerSection(settings, onChange)
             WorldSection(settings, onChange)
             AppearanceSection(settings, onChange)
-            SectionLabel("Widgets")
-            WidgetRows()
+            WidgetRow()
             AboutRows()
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -79,105 +106,187 @@ private fun AlarmSection(
     settings: ClockSettings,
     onChange: ((ClockSettings) -> ClockSettings) -> Unit,
 ) {
-    SectionLabel("Alarms")
-
-    ChoiceRow(
-        title = "Silence after",
-        value = settings.alarms.silenceAfterMinutes,
-        // 0 is "Never" (it rings until it is dismissed). Worth offering and worth putting
-        // last rather than first: it is the answer for someone the default fails, not the
-        // one to fall into by scrolling.
-        options = listOf(1, 5, 10, 15, 20, 25, 30, 0),
-        label = ::minutesLabel,
-        onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(silenceAfterMinutes = v)) } },
-    )
-    ChoiceRow(
-        title = "Snooze length",
-        value = settings.alarms.snoozeMinutes,
-        options = listOf(1, 5, 10, 15, 20, 30),
-        label = ::minutesLabel,
+    SettingRow(Icons.Rounded.Snooze, "Snooze", "How long a snoozed alarm waits")
+    ChoiceGroup(
+        options = listOf(5, 10, 15, 20, 30),
+        selected = settings.alarms.snoozeMinutes,
+        label = { "$it min" },
         onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(snoozeMinutes = v)) } },
     )
+    SettingRow(Icons.Rounded.AlarmOff, "Stop ringing after", "An alarm nobody answers goes quiet")
+    ChoiceGroup(
+        // 0 rings until it's dismissed, so it goes last: the answer for someone the default fails
+        options = listOf(5, 10, 15, 30, 0),
+        selected = settings.alarms.silenceAfterMinutes,
+        label = { if (it == 0) "Never" else "$it min" },
+        onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(silenceAfterMinutes = v)) } },
+    )
     FullScreenIntentRow()
-    ChoiceRow(
-        title = "Start week on",
-        value = settings.alarms.weekStart,
+    SettingRow(Icons.Rounded.CalendarMonth, "Week starts on", "For the days on each alarm")
+    ChoiceGroup(
         options = WeekStart.entries,
-        label = { it.label },
+        selected = settings.alarms.weekStart,
+        label = { if (it == WeekStart.SYSTEM) "Phone" else it.label.take(3) },
         onSelect = { v -> onChange { it.copy(alarms = it.alarms.copy(weekStart = v)) } },
     )
-
 }
 
-/**
- * Add a clock widget, and edit any already placed.
- *
- * This exists because `widgetFeatures="reconfigurable"` is explicitly only a *hint* to the host.
- * Several launchers have never offered a reconfigure affordance, and on those a placed widget would
- * otherwise be uneditable forever. Listing the live ids from `AppWidgetManager` means the app can
- * always get back to one.
- */
-@Composable
-private fun WidgetRows() {
-    val context = LocalContext.current
-    if (WidgetEntryPoints.canPin(context)) {
-        NavigateRow(
-            title = "Add a clock widget",
-            subtitle = "Long-press it on the home screen to change its look",
-            onClick = { WidgetEntryPoints.requestPin(context) },
-        )
-    } else {
-        NavigateRow(
-            title = "Clock widget",
-            subtitle = "Add one from your home screen's widget picker",
-            onClick = {},
-        )
-    }
-}
-
-/**
- * Offers the full-screen-intent grant, and only when it is missing.
- *
- * From Android 14 `USE_FULL_SCREEN_INTENT` is no longer install-granted to anything but calling
- * apps; for everyone else the declared permission is downgraded to a heads-up banner, which is
- * how a ringing alarm ends up as a notification you have to find rather than a screen you cannot
- * miss. `canUseFullScreenIntent()` is the documented way to ask, and
- * `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` the documented way to send the user to grant it.
- *
- * It is a row rather than a launch-time dialog on purpose: the app is perfectly usable without it,
- * and prompting for a special permission before the user has set a single alarm is how permission
- * prompts get dismissed reflexively.
- */
+/** Shown only while the permission is missing; once it's granted there is nothing to say. */
 @Composable
 private fun FullScreenIntentRow() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
     val context = LocalContext.current
+    val haptics = rememberHaptics()
     val nm = context.getSystemService(android.app.NotificationManager::class.java)
-    // Re-read on every recomposition rather than remembering: the user grants this in Settings and
-    // comes back, and a cached value would still say "not allowed" on their return.
+    // re-read on every recomposition: the user grants this in Settings and comes back
     if (nm?.canUseFullScreenIntent() != false) return
-    NavigateRow(
-        title = "Full-screen alarms",
-        subtitle = "Not allowed, so a ringing alarm will show as a banner instead",
-        onClick = {
-            runCatching {
-                context.startActivity(
-                    Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
-                        .setData(android.net.Uri.parse("package:${context.packageName}"))
-                )
+    val open = {
+        haptics.play(Haptic.Tap)
+        runCatching {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                    .setData(Uri.parse("package:${context.packageName}"))
+            )
+        }
+        Unit
+    }
+    SettingRow(
+        Icons.Rounded.Fullscreen,
+        "Full-screen alarms",
+        "Not allowed, so a ringing alarm shows as a banner",
+        onClick = open,
+    ) { TextButton(onClick = open) { Text("Allow") } }
+}
+
+@Composable
+private fun TimerSection(
+    settings: ClockSettings,
+    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
+) {
+    val context = LocalContext.current
+    val haptics = rememberHaptics()
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val picked: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             }
-        },
+            onChange { it.copy(timers = it.timers.copy(soundUri = picked?.toString() ?: SILENT)) }
+        }
+    }
+    val pick = {
+        haptics.play(Haptic.Tap)
+        picker.launch(
+            Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Timer sound")
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+        )
+    }
+    val soundName = when (val u = settings.timers.soundUri) {
+        null -> "Default alarm sound"
+        SILENT -> "Silent"
+        else -> runCatching {
+            RingtoneManager.getRingtone(context, Uri.parse(u))?.getTitle(context)
+        }.getOrNull() ?: "Default alarm sound"
+    }
+    SettingRow(Icons.Rounded.MusicNote, "Timer sound", soundName, onClick = pick) {
+        TextButton(onClick = pick) { Text("Change") }
+    }
+    SettingSwitch(
+        Icons.Rounded.Vibration,
+        "Vibrate for timers",
+        "Buzzes along with the sound when a timer ends",
+        settings.timers.vibrate,
+    ) { v -> onChange { it.copy(timers = it.timers.copy(vibrate = v)) } }
+}
+
+@Composable
+private fun WorldSection(
+    settings: ClockSettings,
+    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
+) {
+    SettingSwitch(
+        Icons.Rounded.Public,
+        "World Clock",
+        "A tab for the time in other cities",
+        settings.world.enabled,
+    ) { v -> onChange { it.copy(world = it.world.copy(enabled = v)) } }
+    AnimatedVisibility(
+        settings.world.enabled,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
+    ) {
+        Column {
+            SettingSwitch(
+                Icons.Rounded.AvTimer,
+                "Seconds",
+                "Show seconds on city times",
+                settings.world.showSeconds,
+            ) { v -> onChange { it.copy(world = it.world.copy(showSeconds = v)) } }
+            SettingRow(Icons.Rounded.Schedule, "Time format", null)
+            ChoiceGroup(
+                options = HourFormat.entries,
+                selected = settings.world.hourFormat,
+                label = { if (it == HourFormat.SYSTEM) "Phone" else it.label },
+                onSelect = { v -> onChange { it.copy(world = it.world.copy(hourFormat = v)) } },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppearanceSection(
+    settings: ClockSettings,
+    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
+) {
+    SettingRow(Icons.Rounded.Contrast, "Theme", null)
+    ChoiceGroup(
+        options = DarkMode.entries,
+        selected = settings.theme.darkMode,
+        label = { if (it == DarkMode.SYSTEM) "Phone" else it.label },
+        onSelect = { v -> onChange { it.copy(theme = it.theme.copy(darkMode = v)) } },
+    )
+    SettingSwitch(
+        Icons.Rounded.DarkMode,
+        "Pure black",
+        "True black in dark mode, for OLED screens",
+        settings.theme.amoledBlack,
+    ) { v -> onChange { it.copy(theme = it.theme.copy(amoledBlack = v)) } }
+    SettingSwitch(
+        Icons.Rounded.BlurOn,
+        "Blur under the bars",
+        "Lists melt into the top and bottom edges. Heavy on some phones",
+        settings.theme.blur,
+    ) { v -> onChange { it.copy(theme = it.theme.copy(blur = v)) } }
+    SettingRow(Icons.Rounded.PaletteIcon, "Colours", "Samay's own, your wallpaper's, or one of these")
+    PaletteRow(
+        dynamic = settings.theme.dynamicColor,
+        selected = settings.theme.palette,
+        onDynamic = { onChange { it.copy(theme = it.theme.copy(dynamicColor = true)) } },
+        onSelect = { v -> onChange { it.copy(theme = it.theme.copy(palette = v, dynamicColor = false)) } },
     )
 }
 
-/**
- * The palette picker: a swatch per scheme, showing the three accents it actually produces.
- *
- * A single dot would be a lie here: the Expressive variant's whole point is that secondary and
- * tertiary rotate away from the seed, so two palettes with similar primaries can be completely
- * different to use. The swatch is a three-stop gradient of primary, tertiary and secondary for
- * that reason.
- */
+@Composable
+private fun WidgetRow() {
+    val context = LocalContext.current
+    val haptics = rememberHaptics()
+    if (WidgetEntryPoints.canPin(context)) {
+        val add = { haptics.play(Haptic.Tap); WidgetEntryPoints.requestPin(context); Unit }
+        SettingRow(Icons.Rounded.Widgets, "Clock widget", "Hold it on the home screen to change its look", onClick = add) {
+            TextButton(onClick = add) { Text("Add") }
+        }
+    } else {
+        SettingRow(Icons.Rounded.Widgets, "Clock widget", "Add one from your home screen's widget picker")
+    }
+}
+
 @Composable
 private fun PaletteRow(
     dynamic: Boolean,
@@ -198,15 +307,24 @@ private fun PaletteRow(
     }
 
     LazyRow(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Samay's own palette first, then the wallpaper's, then the rest
+        item(key = Palette.CONCEPT.name) {
+            Swatch(
+                name = Palette.CONCEPT.displayName,
+                scheme = if (dark) Palette.CONCEPT.dark else Palette.CONCEPT.light,
+                selected = !dynamic && selected == Palette.CONCEPT,
+                onClick = { onSelect(Palette.CONCEPT) },
+            )
+        }
         if (wallpaper != null) {
             item(key = "wallpaper") {
                 Swatch("Wallpaper", wallpaper, dynamic, onDynamic)
             }
         }
-        items(Palette.entries, key = { it.name }) { palette ->
+        items(Palette.entries.filter { it != Palette.CONCEPT }, key = { it.name }) { palette ->
             Swatch(
                 name = palette.displayName,
                 scheme = if (dark) palette.dark else palette.light,
@@ -217,6 +335,7 @@ private fun PaletteRow(
     }
 }
 
+/** The chosen palette swells from a circle into a cookie, so the pick reads by shape, not only a tick. */
 @Composable
 private fun Swatch(
     name: String,
@@ -224,11 +343,13 @@ private fun Swatch(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val haptics = rememberHaptics()
+    val shape = stateMorph(MaterialShapes.Circle, MaterialShapes.Cookie9Sided, selected)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier
                 .size(56.dp)
-                .clip(CircleShape)
+                .clip(shape)
                 .background(
                     Brush.linearGradient(
                         0f to scheme.primary,
@@ -236,19 +357,10 @@ private fun Swatch(
                         1f to scheme.secondary,
                     )
                 )
-                .border(
-                    width = if (selected) 3.dp else 0.dp,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        androidx.compose.ui.graphics.Color.Transparent
-                    },
-                    shape = CircleShape,
-                )
-                .clickable(role = Role.RadioButton, onClick = onClick),
+                .clickable(role = Role.RadioButton) { if (!selected) haptics.play(Haptic.Segment); onClick() },
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) {
+            androidx.compose.animation.AnimatedVisibility(selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
                 Icon(
                     Icons.Rounded.Check,
                     contentDescription = null,
@@ -260,128 +372,4 @@ private fun Swatch(
         Spacer(Modifier.height(6.dp))
         Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
-}
-
-@Composable
-private fun AppearanceSection(
-    settings: ClockSettings,
-    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
-) {
-    SectionLabel("Appearance")
-    ChoiceRow(
-        title = "Theme",
-        value = settings.theme.darkMode,
-        options = DarkMode.entries,
-        label = { it.label },
-        onSelect = { v -> onChange { it.copy(theme = it.theme.copy(darkMode = v)) } },
-    )
-    SwitchRow(
-        title = "Pure black",
-        subtitle = "True black surfaces in dark mode, for OLED screens",
-        checked = settings.theme.amoledBlack,
-        onChange = { v -> onChange { it.copy(theme = it.theme.copy(amoledBlack = v)) } },
-    )
-    SwitchRow(
-        title = "Blur under the bars",
-        subtitle = "Lists melt into the top and bottom edges. Heavy on some phones",
-        checked = settings.theme.blur,
-        onChange = { v -> onChange { it.copy(theme = it.theme.copy(blur = v)) } },
-    )
-
-    // Always on show, with the wallpaper as the first swatch rather than as a switch
-    // somewhere above them. Hiding the palettes behind "wallpaper colours: off" meant that
-    // on a fresh install, where wallpaper colour is the default, the theme picker looked
-    // like it did not exist.
-    PaletteRow(
-        dynamic = settings.theme.dynamicColor,
-        selected = settings.theme.palette,
-        onDynamic = { onChange { it.copy(theme = it.theme.copy(dynamicColor = true)) } },
-        onSelect = { v ->
-            onChange { it.copy(theme = it.theme.copy(palette = v, dynamicColor = false)) }
-        },
-    )
-
-}
-
-@Composable
-private fun WorldSection(
-    settings: ClockSettings,
-    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
-) {
-    SectionLabel("World clock")
-    SwitchRow(
-        title = "Show World Clock",
-        checked = settings.world.enabled,
-        onChange = { v -> onChange { it.copy(world = it.world.copy(enabled = v)) } },
-    )
-    AnimatedVisibility(settings.world.enabled) {
-        Column {
-            SwitchRow(
-                title = "Display time with seconds",
-                checked = settings.world.showSeconds,
-                onChange = { v -> onChange { it.copy(world = it.world.copy(showSeconds = v)) } },
-            )
-            ChoiceRow(
-                title = "Time format",
-                value = settings.world.hourFormat,
-                options = HourFormat.entries,
-                label = { it.label },
-                onSelect = { v -> onChange { it.copy(world = it.world.copy(hourFormat = v)) } },
-            )
-        }
-    }
-}
-
-@Composable
-private fun TimerSection(
-    settings: ClockSettings,
-    onChange: ((ClockSettings) -> ClockSettings) -> Unit,
-) {
-    val context = LocalContext.current
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-    val picked: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-    }
-    onChange { it.copy(timers = it.timers.copy(soundUri = picked?.toString() ?: SILENT)) }
-        }
-    }
-
-    SectionLabel("Timers")
-    NavigateRow(
-        title = "Timer sound",
-        subtitle = when (val u = settings.timers.soundUri) {
-            null -> "Default alarm sound"
-            SILENT -> "Silent"
-            else -> runCatching {
-                RingtoneManager.getRingtone(context, Uri.parse(u))?.getTitle(context)
-            }.getOrNull() ?: "Default alarm sound"
-        },
-        onClick = {
-            picker.launch(
-                Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
-                    .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                    .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Timer sound")
-                    .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                    .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
-            )
-        },
-    )
-    SwitchRow(
-        title = "Timer vibrate",
-        checked = settings.timers.vibrate,
-        onChange = { v -> onChange { it.copy(timers = it.timers.copy(vibrate = v)) } },
-    )
-}
-
-/** 0 is never, 1 is singular. Both of these read wrong the moment they are not special-cased. */
-private fun minutesLabel(minutes: Int): String = when (minutes) {
-    0 -> "Never"
-    1 -> "1 minute"
-    else -> "$minutes minutes"
 }

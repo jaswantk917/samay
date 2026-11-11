@@ -194,14 +194,14 @@ private fun Preferences.toSettings() = ClockSettings(
     world = WorldClockSettings(
         showSeconds = this[booleanPreferencesKey("showSeconds")] ?: false,
         hourFormat = enumOr(this[stringPreferencesKey("hourFormat")], HourFormat.SYSTEM),
-        enabled = this[booleanPreferencesKey("worldTab")] ?: true,
+        enabled = this[booleanPreferencesKey("worldTab")] ?: false,
     ),
     timers = TimerSettings(
         soundUri = this[stringPreferencesKey("timerSound")],
         vibrate = this[booleanPreferencesKey("timerVibrate")] ?: true,
     ),
     theme = ThemeSettings(
-        dynamicColor = this[booleanPreferencesKey("dynamicColor")] ?: true,
+        dynamicColor = this[booleanPreferencesKey("dynamicColor")] ?: false,
         palette = enumOr(this[stringPreferencesKey("palette")], Palette.CONCEPT),
         darkMode = enumOr(this[stringPreferencesKey("darkMode")], DarkMode.SYSTEM),
         amoledBlack = this[booleanPreferencesKey("amoled")] ?: false,

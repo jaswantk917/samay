@@ -11,9 +11,20 @@
   is the dial as far as the user is concerned.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@android:id/background"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+    <!--
+      What the launcher animates into the app when the widget is tapped. It is sized and rounded to
+      the face at runtime, and its transparent colour is what the launcher clones, so the app grows
+      out of the face instead of out of a filled rectangle the size of the cell.
+    -->
+    <FrameLayout
+        android:id="@android:id/background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:clipToOutline="true" />
 
     <ImageView
         android:id="@+id/face"

@@ -1,5 +1,11 @@
 package app.materialclock.ui.sheets
 
+import app.materialclock.ui.util.rememberHaptics
+import app.materialclock.ui.util.Haptic
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,24 +47,13 @@ import app.materialclock.BuildConfig
 fun AboutRows() {
     var open by remember { mutableStateOf<AboutPage?>(null) }
 
-    SectionLabel("About")
-    NavigateRow(
-        title = "Privacy",
-        subtitle = "No accounts, no telemetry, no network",
-        onClick = { open = AboutPage.PRIVACY },
-    )
-    NavigateRow(
-        title = "Permissions",
-        subtitle = "What each one is for",
-        onClick = { open = AboutPage.PERMISSIONS },
-    )
-    NavigateRow(
-        title = "Licences",
-        subtitle = "Fonts and libraries",
-        onClick = { open = AboutPage.LICENCES },
-    )
+    val haptics = rememberHaptics()
+    fun show(page: AboutPage) { haptics.play(Haptic.Tap); open = page }
+    SettingRow(Icons.Rounded.Lock, "Privacy", "No accounts, no tracking, no network", onClick = { show(AboutPage.PRIVACY) })
+    SettingRow(Icons.Rounded.VerifiedUser, "Permissions", "What each one is for", onClick = { show(AboutPage.PERMISSIONS) })
+    SettingRow(Icons.Rounded.Description, "Licences", "Fonts and libraries", onClick = { show(AboutPage.LICENCES) })
     Text(
-        "Clock ${BuildConfig.VERSION_NAME}",
+        "Samay ${BuildConfig.VERSION_NAME}",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,

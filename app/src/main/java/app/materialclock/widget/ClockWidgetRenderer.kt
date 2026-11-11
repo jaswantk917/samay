@@ -18,6 +18,7 @@ import app.materialclock.R
 import app.materialclock.data.ClockStore
 import app.materialclock.data.DateMode
 import app.materialclock.data.DatePosition
+import app.materialclock.data.FaceShape
 import app.materialclock.data.HandStyle
 import app.materialclock.data.WidgetConfig
 import java.io.ByteArrayOutputStream
@@ -170,8 +171,10 @@ object ClockWidgetRenderer {
 
         applyDate(context, views, config, colours, face, w, h)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) fitLaunchShape(views, config, face)
+
         views.setOnClickPendingIntent(
-            android.R.id.background,
+            R.id.root,
             android.app.PendingIntent.getActivity(
                 context,
                 0,
@@ -180,6 +183,26 @@ object ClockWidgetRenderer {
             ),
         )
         return views
+    }
+
+    /** Sizes the launch-animation view to the face, with corners that roughly follow its shape. */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.S)
+    private fun fitLaunchShape(views: RemoteViews, config: WidgetConfig, face: FaceRenderer.Face) {
+        val b = face.bounds
+        val side = minOf(b.width(), b.height())
+        val radius = when (config.shape) {
+            FaceShape.CIRCLE, FaceShape.PILL -> side / 2f
+            FaceShape.SQUARE_SHARP -> 0f
+            FaceShape.ROUNDED_SQUARE -> side * 0.22f
+            else -> side * 0.38f
+        }
+        val px = TypedValue.COMPLEX_UNIT_PX
+        val id = android.R.id.background
+        views.setViewLayoutWidth(id, b.width(), px)
+        views.setViewLayoutHeight(id, b.height(), px)
+        views.setViewLayoutMargin(id, RemoteViews.MARGIN_LEFT, b.left, px)
+        views.setViewLayoutMargin(id, RemoteViews.MARGIN_TOP, b.top, px)
+        views.setViewOutlinePreferredRadius(id, radius, px)
     }
 
     private fun applyDate(

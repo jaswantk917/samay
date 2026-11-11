@@ -1,5 +1,23 @@
 package app.materialclock.ui.screens
 
+import app.materialclock.ui.util.pressScale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import app.materialclock.ui.util.onLongPress
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -81,6 +99,7 @@ fun TimersScreen(
     nowElapsedMillis: Long,
     onDigit: (Char) -> Unit,
     onBackspace: () -> Unit,
+    onClear: () -> Unit,
     onWind: (Int) -> Unit,
     onStart: () -> Unit,
     onPauseResume: () -> Unit,
@@ -98,7 +117,7 @@ fun TimersScreen(
         if (running && timer != null) {
             RunningTimer(timer, nowElapsedMillis, onPauseResume, onAddTen, onCancel)
         } else {
-            SetTimer(draft, onDigit, onBackspace, onWind, onStart)
+            SetTimer(draft, onDigit, onBackspace, onClear, onWind, onStart)
         }
     }
 }
@@ -110,6 +129,7 @@ private fun SetTimer(
     draft: Duration,
     onDigit: (Char) -> Unit,
     onBackspace: () -> Unit,
+    onClear: () -> Unit,
     onWind: (Int) -> Unit,
     onStart: () -> Unit,
 ) {
@@ -126,7 +146,7 @@ private fun SetTimer(
         Spacer(Modifier.height(4.dp))
         DraftReadout(hh, mm, ss)
         Spacer(Modifier.height(22.dp))
-        Keypad(onDigit = onDigit, onBackspace = onBackspace)
+        Keypad(onDigit = onDigit, onBackspace = onBackspace, onClear = onClear)
         Spacer(Modifier.height(10.dp))
         // Below the keypad and above Start: you type an exact value or wind to a rough one, and
         // the winder sits next to the button it feeds.
@@ -166,7 +186,19 @@ private fun SetTimer(
  */
 @Composable
 private fun DraftReadout(hh: String, mm: String, ss: String) {
-    val text = "$hh:$mm:$ss"
+    AnimatedContent(
+        "$hh:$mm:$ss",
+        transitionSpec = {
+            (slideInVertically(spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow)) { it / 3 } + fadeIn())
+                .togetherWith(slideOutVertically { -it / 3 } + fadeOut())
+                .using(SizeTransform(clip = false))
+        },
+        label = "draft",
+    ) { text -> DraftDigits(text, hh, mm, ss) }
+}
+
+@Composable
+private fun DraftDigits(text: String, hh: String, mm: String, ss: String) {
     val firstReal = text.indexOfFirst { it in '1'..'9' }.let { if (it < 0) text.length - 1 else it }
     val cap = 56.dp
     Row(
@@ -198,7 +230,7 @@ private fun DraftReadout(hh: String, mm: String, ss: String) {
 
 /** Ten digits and a backspace on a 3 × 4 grid. */
 @Composable
-private fun Keypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit) {
+private fun Keypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onClear: () -> Unit) {
     val rows = listOf("123", "456", "789")
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -213,7 +245,7 @@ private fun Keypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit) {
             Spacer(Modifier.weight(1f))
             DigitKey('0', onDigit, Modifier.weight(1f))
             KeyBox(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).onLongPress(onClear),
                 onClick = onBackspace,
                 container = Color.Transparent,
                 label = "Delete",
@@ -250,12 +282,21 @@ private fun KeyBox(
     label: String,
     content: @Composable () -> Unit,
 ) {
+    val press = remember { MutableInteractionSource() }
+    val held by press.collectIsPressedAsState()
+    val corner by animateIntAsState(
+        if (held) 26 else 50,
+        if (held) spring(stiffness = Spring.StiffnessHigh) else spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
+        label = "keyCorner",
+    )
     Surface(
         onClick = onClick,
         color = container,
-        shape = CircleShape,
+        shape = RoundedCornerShape(percent = corner),
+        interactionSource = press,
         modifier = modifier
             .height(58.dp)
+            .pressScale(press, pressed = 0.94f)
             .clearAndSetSemantics { contentDescription = label },
     ) {
         Box(contentAlignment = Alignment.Center) { content() }
@@ -280,6 +321,16 @@ private fun RunningTimer(
         "%02d:%02d".format((secs % 3600) / 60, secs % 60)
     }
     val running = timer.state == TimerState.RUNNING
+    // the ring swells for a beat when +10s lands, so the added time is felt as well as read
+    val pop = remember { Animatable(1f) }
+    var seenTotal by remember { mutableStateOf(timer.total) }
+    LaunchedEffect(timer.total) {
+        if (timer.total > seenTotal) {
+            pop.animateTo(1.06f, spring(stiffness = Spring.StiffnessHigh))
+            pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow))
+        }
+        seenTotal = timer.total
+    }
 
     // The readout is fitted, not fixed. "25:00" and "1:05:00" are different widths and the second
     // one ran straight out of the ring: a timer set past an hour is exactly when you would not be
@@ -305,7 +356,7 @@ private fun RunningTimer(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.weight(1f))
-        Box(contentAlignment = Alignment.Center) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) {
             CircularWavyProgressIndicator(
                 progress = { timer.fractionLeft(nowElapsedMillis) },
                 modifier = Modifier.size(RING_SIZE_DP.dp),

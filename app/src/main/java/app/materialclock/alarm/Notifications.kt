@@ -87,6 +87,8 @@ object Notifications {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openApp(context, TAB_TIMERS))
+            // a Live Update: pinned at the top of the shade, with a ticking chip in the status bar
+            .setRequestPromotedOngoing(true)
             .addAction(
                 0,
                 if (running) "Pause" else "Resume",
@@ -95,16 +97,33 @@ object Notifications {
             .addAction(0, "+1 min", broadcast(context, ClockActionReceiver.ACTION_TIMER_ADD, 21))
             .addAction(0, "Cancel", broadcast(context, ClockActionReceiver.ACTION_TIMER_CANCEL, 22))
 
+        val remaining = timer.remaining(SystemClock.elapsedRealtime())
         if (running) {
             // The platform ticks this. `when` is the moment it reaches zero.
             b.setUsesChronometer(true)
                 .setChronometerCountDown(true)
-                .setWhen(System.currentTimeMillis() + timer.remaining(SystemClock.elapsedRealtime()).toMillis())
+                .setWhen(System.currentTimeMillis() + remaining.toMillis())
                 .setShowWhen(true)
         } else {
             b.setUsesChronometer(false)
                 .setShowWhen(false)
+                .setShortCriticalText(timer.pausedRemaining.clockFormat())
                 .setContentText("Paused · ${timer.pausedRemaining.clockFormat()}")
+        }
+        if (Build.VERSION.SDK_INT >= 37) {
+            // Android 17's metric layout: the big ticking number Google Clock uses
+            val value = if (running) {
+                NotificationCompat.Metric.TimeDifference.forTimer(
+                    SystemClock.elapsedRealtime() + remaining.toMillis(),
+                    NotificationCompat.Metric.TimeDifference.FORMAT_CHRONOMETER,
+                )
+            } else {
+                NotificationCompat.Metric.TimeDifference.forPausedTimer(
+                    timer.pausedRemaining,
+                    NotificationCompat.Metric.TimeDifference.FORMAT_CHRONOMETER,
+                )
+            }
+            b.setStyle(NotificationCompat.MetricStyle().addMetric(NotificationCompat.Metric(value, if (running) "Left" else "Paused")))
         }
         post(context, ID_TIMER, b.build())
     }
@@ -123,6 +142,7 @@ object Notifications {
             .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openApp(context, TAB_STOPWATCH))
+            .setRequestPromotedOngoing(true)
             .addAction(
                 0,
                 if (sw.running) "Stop" else "Start",
@@ -138,15 +158,31 @@ object Notifications {
                 ),
             )
 
+        val elapsed = sw.elapsed(SystemClock.elapsedRealtime())
         if (sw.running) {
             // Counting up: `when` is the instant it started, which the platform subtracts from now.
             b.setUsesChronometer(true)
-                .setWhen(System.currentTimeMillis() - sw.elapsed(SystemClock.elapsedRealtime()).toMillis())
+                .setWhen(System.currentTimeMillis() - elapsed.toMillis())
                 .setShowWhen(true)
         } else {
             b.setUsesChronometer(false)
                 .setShowWhen(false)
+                .setShortCriticalText(sw.accumulated.clockFormat())
                 .setContentText(sw.accumulated.clockFormat(withHours = true))
+        }
+        if (Build.VERSION.SDK_INT >= 37) {
+            val value = if (sw.running) {
+                NotificationCompat.Metric.TimeDifference.forStopwatch(
+                    SystemClock.elapsedRealtime() - elapsed.toMillis(),
+                    NotificationCompat.Metric.TimeDifference.FORMAT_CHRONOMETER,
+                )
+            } else {
+                NotificationCompat.Metric.TimeDifference.forPausedStopwatch(
+                    sw.accumulated,
+                    NotificationCompat.Metric.TimeDifference.FORMAT_CHRONOMETER,
+                )
+            }
+            b.setStyle(NotificationCompat.MetricStyle().addMetric(NotificationCompat.Metric(value, if (sw.running) "Running" else "Stopped")))
         }
         post(context, ID_STOPWATCH, b.build())
     }

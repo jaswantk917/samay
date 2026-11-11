@@ -30,6 +30,8 @@ enum class Haptic {
     Threshold,
     /** a long press opens a menu */
     Hold,
+    /** something set going: a timer started, an alarm saved */
+    Confirm,
     /** a big finish, e.g. an alarm dismissed or a timer done */
     Success,
     /** gone: a low thud */
@@ -92,6 +94,10 @@ class Haptics(private val view: View) {
             Step(Composition.PRIMITIVE_QUICK_RISE, 0.5f),
             Step(Composition.PRIMITIVE_TICK, 0.8f, 25),
         )
+        Haptic.Confirm -> listOf(
+            Step(Composition.PRIMITIVE_QUICK_RISE, 0.5f),
+            Step(Composition.PRIMITIVE_CLICK, 0.8f, 30),
+        )
         Haptic.Success -> listOf(
             Step(Composition.PRIMITIVE_SLOW_RISE, 0.5f),
             Step(Composition.PRIMITIVE_CLICK, 1f, 40),
@@ -118,7 +124,7 @@ class Haptics(private val view: View) {
         Haptic.Threshold -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
             HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else HapticFeedbackConstants.CONTEXT_CLICK
         Haptic.Hold -> HapticFeedbackConstants.LONG_PRESS
-        Haptic.Success -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+        Haptic.Confirm, Haptic.Success -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
             HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS
         Haptic.Delete -> HapticFeedbackConstants.LONG_PRESS
         Haptic.Segment -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)

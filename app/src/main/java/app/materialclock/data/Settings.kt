@@ -25,7 +25,7 @@ data class AlarmSettings(
 
 data class WorldClockSettings(
     /** Whether the World Clock tab is shown at all. */
-    val enabled: Boolean = true,
+    val enabled: Boolean = false,
     val showSeconds: Boolean = false,
     val hourFormat: HourFormat = HourFormat.SYSTEM,
 )
@@ -38,11 +38,9 @@ data class TimerSettings(
 
 data class ThemeSettings(
     /**
-     * Wallpaper colour is the default, per the platform's own guidance: a clock is a background
-     * app and should look like it belongs to the phone rather than to itself. [palette] is what it
-     * falls back to when dynamic colour is off, or unavailable below API 31.
+     * Samay's own palette ([Palette.CONCEPT]) is the default; wallpaper colour is one tap away.
      */
-    val dynamicColor: Boolean = true,
+    val dynamicColor: Boolean = false,
     val palette: Palette = Palette.CONCEPT,
     val darkMode: DarkMode = DarkMode.SYSTEM,
     val amoledBlack: Boolean = false,
