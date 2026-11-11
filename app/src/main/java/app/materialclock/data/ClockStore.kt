@@ -204,6 +204,7 @@ private fun Preferences.toSettings() = ClockSettings(
         palette = enumOr(this[stringPreferencesKey("palette")], Palette.CONCEPT),
         darkMode = enumOr(this[stringPreferencesKey("darkMode")], DarkMode.SYSTEM),
         amoledBlack = this[booleanPreferencesKey("amoled")] ?: false,
+        blur = this[booleanPreferencesKey("blur")] ?: ThemeSettings().blur,
     ),
 )
 
@@ -221,6 +222,7 @@ private fun androidx.datastore.preferences.core.MutablePreferences.writeSettings
     this[stringPreferencesKey("palette")] = s.theme.palette.name
     this[stringPreferencesKey("darkMode")] = s.theme.darkMode.name
     this[booleanPreferencesKey("amoled")] = s.theme.amoledBlack
+    this[booleanPreferencesKey("blur")] = s.theme.blur
 }
 
 /** Falls back rather than throwing: a preference file written by a newer build must not crash. */

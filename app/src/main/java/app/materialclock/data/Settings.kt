@@ -46,6 +46,8 @@ data class ThemeSettings(
     val palette: Palette = Palette.CONCEPT,
     val darkMode: DarkMode = DarkMode.SYSTEM,
     val amoledBlack: Boolean = false,
+    /** Progressive blur under the bars; heavy for Mali GPUs, so on by default only on Pixels. */
+    val blur: Boolean = android.os.Build.MANUFACTURER.equals("Google", ignoreCase = true),
 )
 
 enum class DarkMode(val label: String) { SYSTEM("System"), LIGHT("Light"), DARK("Dark") }

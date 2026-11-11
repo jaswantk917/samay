@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "app.materialclock"
     compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         applicationId = "io.github.jaswantk917.samay"

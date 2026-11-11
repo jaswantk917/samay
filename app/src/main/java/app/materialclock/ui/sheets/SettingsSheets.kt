@@ -286,6 +286,12 @@ fun StopwatchSettingsSheet(
                 checked = settings.theme.amoledBlack,
                 onChange = { v -> onChange { it.copy(theme = it.theme.copy(amoledBlack = v)) } },
             )
+            SwitchRow(
+                title = "Blur under the bars",
+                subtitle = "Lists melt into the top and bottom edges. Heavy on some phones",
+                checked = settings.theme.blur,
+                onChange = { v -> onChange { it.copy(theme = it.theme.copy(blur = v)) } },
+            )
 
             // Always on show, with the wallpaper as the first swatch rather than as a switch
             // somewhere above them. Hiding the palettes behind "wallpaper colours: off" meant that

@@ -1,5 +1,7 @@
 package app.materialclock.ui.sheets
 
+import app.materialclock.ui.util.Haptic
+import app.materialclock.ui.util.rememberHaptics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,14 +42,16 @@ fun SwitchRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
+    val haptics = rememberHaptics()
+    val flip: (Boolean) -> Unit = { on -> haptics.play(if (on) Haptic.ToggleOn else Haptic.ToggleOff); onChange(on) }
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = subtitle?.let { { Text(it) } },
-        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = flip) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         // One tap target for the whole row. `Role.Switch` is what tells a screen reader the row is
         // the control, rather than announcing an unlabelled switch beside some text.
-        modifier = Modifier.clickable(role = Role.Switch) { onChange(!checked) },
+        modifier = Modifier.clickable(role = Role.Switch) { flip(!checked) },
     )
 }
 
